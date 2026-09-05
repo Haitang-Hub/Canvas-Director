@@ -291,9 +291,4 @@ Full documentation at [docs/index.md](./docs/index.md). 完整文档请访问 [d
 - Storage formats may change during development — always export backups for important projects.
   开发阶段存储格式会变动，重要工程务必导出备份。
 
----
 
-## License · 许可
-
-MIT License — free for personal, open-source, and commercial use.
-MIT 许可 — 允许个人、开源及商业场景免费使用。
