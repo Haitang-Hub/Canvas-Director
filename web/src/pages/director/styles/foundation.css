@@ -1,0 +1,108 @@
+.director-desk-app {
+  color-scheme: light;
+  --bg-rgb: 255 255 255;
+  --surface-rgb: 245 245 245;
+  --surface-hover-rgb: 235 235 235;
+  --panel-rgb: 255 255 255;
+  --field-rgb: 248 250 252;
+  --border-rgb: 224 224 224;
+  --text-rgb: 0 0 0;
+  --text-muted-rgb: 102 102 102;
+  --text-dim-rgb: 148 148 148;
+  --accent-rgb: 3 150 255;
+  --accent-hover-rgb: 37 99 235;
+  --overlay-rgb: 15 23 42;
+  --ui-shadow-panel: 0 14px 34px rgba(15, 23, 42, 0.18);
+  --left-sidebar-width: 196px;
+  --right-sidebar-width: 276px;
+  --left-sidebar-content-width: 180px;
+  --right-sidebar-content-width: 260px;
+  height: 100%;
+  min-width: 0;
+  margin: 0;
+  overflow: hidden;
+  font-family: "Inter", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  background: rgb(var(--bg-rgb));
+  color: rgb(var(--text-rgb));
+}
+
+.director-desk-app[data-theme="dark"],
+.director-desk-app.dark {
+  color-scheme: dark;
+  --bg-rgb: 9 9 9;
+  --surface-rgb: 26 26 26;
+  --surface-hover-rgb: 34 34 34;
+  --panel-rgb: 26 26 26;
+  --field-rgb: 10 10 12;
+  --border-rgb: 42 42 42;
+  --text-rgb: 255 255 255;
+  --text-muted-rgb: 136 136 136;
+  --text-dim-rgb: 95 95 95;
+  --accent-rgb: 3 150 255;
+  --accent-hover-rgb: 96 165 250;
+  --overlay-rgb: 0 0 0;
+  --ui-shadow-panel: 0 14px 34px rgba(0, 0, 0, 0.38);
+}
+
+.director-desk-app,
+.director-desk-app *,
+.director-desk-app *::before,
+.director-desk-app *::after {
+  box-sizing: border-box;
+}
+
+.director-desk-app * {
+  scrollbar-width: thin;
+  scrollbar-color: rgb(var(--border-rgb) / 0.5) transparent;
+}
+
+.director-desk-app button,
+.director-desk-app input,
+.director-desk-app select,
+.director-desk-app textarea {
+  font: inherit;
+}
+
+.director-desk-app button {
+  cursor: pointer;
+}
+
+.director-desk-app input,
+.director-desk-app select,
+.director-desk-app textarea {
+  color: inherit;
+}
+
+.director-desk-app button:focus-visible {
+  outline: 2px solid rgb(var(--accent-rgb) / 0.78);
+  outline-offset: 1px;
+}
+
+.director-desk-app input:focus-visible,
+.director-desk-app select:focus-visible,
+.director-desk-app textarea:focus-visible {
+  outline: 1px solid rgb(var(--accent-rgb) / 0.78);
+  outline-offset: 1px;
+}
+
+.director-desk-app ::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+.director-desk-app ::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.director-desk-app ::-webkit-scrollbar-thumb {
+  background: rgb(var(--border-rgb) / 0.5);
+  border-radius: 999px;
+}
+
+.director-desk-app ::-webkit-scrollbar-thumb:hover {
+  background: rgb(var(--accent-rgb) / 0.4);
+}
