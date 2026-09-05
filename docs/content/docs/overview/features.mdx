@@ -60,6 +60,65 @@ See [Third-party Prompt Sources](/docs/overview/third-party-prompt-repositories)
 - Store application data and API credentials locally in the browser.
 - Use WebDAV for optional cross-device synchronization.
 
+## 3D Director
+
+A 3D scene directing tool based on Three.js / React Three Fiber, supporting multi-character, multi-camera-route productions and final video exports.
+
+### Multi-view Consistency
+
+The main viewport, monitor window, and first-person view play the same timeline in sync; animation poses, camera positions, and panorama backgrounds are consistent across all views, and scrubbing/replay returns to identical poses.
+
+### Camera and Character Routes
+
+- Unified support for smooth/straight route types and constant/gentle/custom segment easing curves.
+- Route points can be set to "pass through" or "hold"; holds can specify duration and a hold action (plays from arrival time, resumes next segment after hold ends).
+- Dual-rail timeline at the bottom shows both camera and character movement and hold segments simultaneously.
+- Custom easing supports straight, slow-start, slow-stop, and gentle-both-ends; characters and camera share the same control and data fields.
+- Main viewport, camera rig, and trajectory panels all highlight and jump based on computed arrival times, not legacy trackpoint timestamps.
+
+### Body Part Tracking
+
+- Each camera point can independently select a character and body part: full body, head, chest, waist, limbs — 16 semantic regions.
+- Supports instant follow and gentle follow modes; main viewport, monitor window, and exports share the same runtime result.
+
+### External Rigged Character Import
+
+- Supports FBX / GLB character models with built-in skeleton recognition and automatic mapping of 15 semantic bone regions.
+- Inspection dialog can supplement unknown skeletons (Bip/UE4, CC Base, etc.); mapping results are used for external animation retargeting and body-part tracking.
+- Auto upright, scale to reasonable height, and snap to ground.
+- Model library cards show compatibility tags: "Animation Ready", "Needs Skeleton Mapping", "Built-in Animation Only", "Static Only".
+
+### Panorama and Ground
+
+- Supports JPG / PNG / WEBP panorama import; binary stored in IndexedDB, project state keeps only stable references.
+- Replace, delete, left/right rotate, brightness adjust, and reset to default direction.
+- Five views (main viewport, first-person, monitor window, preview window, export preview) all share the same panorama asset.
+- 5 ground materials: studio, concrete, asphalt, wood floor, grass; edit grid, snap-to-grid movement, and ground toggle are independent.
+
+### Community Camera Presets
+
+Built-in presets: dolly in/out, pan left/right, tilt up/down, track shot, arc crane, handheld shake, and parallel tracking. Selectable follow target with real-time trajectory range adjustment.
+
+### Performance Profiles
+
+Three options from the performance menu:
+- **Auto**: selects internal profile based on device capability.
+- **Smooth**: lower DPR and UI refresh rate for low-end devices.
+- **Quality**: highest render fidelity for high-performance devices.
+
+Profiles uniformly control DPR, anti-aliasing, and playback refresh rate for the main viewport, monitor window, and Gizmo; 720p/1080p final video exports are unaffected by edit preview settings.
+
+### Extension Protocol
+
+No built-in ComfyUI or LLM binding — only stable interfaces for third-party development:
+- `capabilities.get`: query protocol version, project version, and export capabilities.
+- `project.get`: read a deep-copied project snapshot (scene, camera, FOV, camera routes, character routes, animations, per-point tracking targets), without exposing UI state.
+- `timeline.get`: read current playback progress, seconds, duration, play state, and active camera.
+- `export.frame`: programmatically export first, current, or last frame (720p/1080p PNG).
+- `export.video`: programmatically export reference video (720p/1080p, 24/30/60 FPS, WebM Blob).
+
+Project JSON uses an explicit migration pipeline (version `0 → 1`); future versions are explicitly rejected instead of silently dropping fields.
+
 ## Current limitations
 
 - The project is frontend-first and does not provide built-in cloud accounts or cloud storage.

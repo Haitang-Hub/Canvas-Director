@@ -61,7 +61,7 @@ function CompareContent({ ctx }: CanvasNodeContentProps) {
     }
 
     return (
-        <div data-canvas-no-zoom onMouseDown={(e) => e.stopPropagation()} style={{ height: "100%", width: "100%", display: "flex", flexDirection: "column", gap: 8, padding: 12, boxSizing: "border-box" }}>
+        <div data-canvas-no-zoom style={{ height: "100%", width: "100%", display: "flex", flexDirection: "column", gap: 8, padding: 12, boxSizing: "border-box" }}>
             <div style={{ display: "flex", gap: 6 }}>
                 {[
                     { id: "side", label: "并排", icon: "⬒" },

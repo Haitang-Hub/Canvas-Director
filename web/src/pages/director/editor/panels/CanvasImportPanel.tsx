@@ -249,20 +249,55 @@ export function CanvasImportPanel({ importTarget }: { importTarget: DirectorImpo
     }
   }
 
+/** 将多张截图拼成一张 2x2 网格图，返回合并后的 dataUrl */
+async function mergeFourScreenshotsToGrid(
+  results: Awaited<ReturnType<typeof requestViewportCapture>>
+): Promise<string | null> {
+  const shots = results.filter((s): s is NonNullable<typeof s> => s != null);
+  if (!shots.length) return Promise.resolve(null);
+
+  // 以第一张的尺寸为基准，其余等比缩放
+  const img = new Image();
+  img.src = shots[0].dataUrl;
+  await new Promise<void>((resolve, reject) => {
+    img.onload = () => resolve();
+    img.onerror = () => reject(new Error("截图加载失败"));
+  });
+
+  const cellW = img.naturalWidth;
+  const cellH = img.naturalHeight;
+  const canvas = document.createElement("canvas");
+  canvas.width = cellW * 2;
+  canvas.height = cellH * 2;
+  const ctx = canvas.getContext("2d");
+  if (!ctx) return Promise.resolve(null);
+
+  const positions: [number, number][] = [[0, 0], [cellW, 0], [0, cellH], [cellW, cellH]];
+  for (let i = 0; i < shots.length; i++) {
+    const s = new Image();
+    s.src = shots[i].dataUrl;
+    await new Promise<void>((resolve, reject) => {
+      s.onload = () => {
+        ctx.drawImage(s, positions[i][0], positions[i][1], cellW, cellH);
+        resolve();
+      };
+      s.onerror = () => reject(new Error("截图加载失败"));
+    });
+  }
+
+  return canvas.toDataURL("image/png");
+}
+
   async function handleImportFourViewScreenshot() {
     if (busy || !canImport) return;
     setBusy("fourImage");
     setStatus(null);
     try {
       const results = await requestViewportCapture({ preset: "four", source: "canvas-import" });
-      const lastStatus = [];
-      for (const shot of results) {
-        if (!shot) continue;
-        const uploaded = await uploadImage(shot.dataUrl);
-        const result = await appendNodeToCanvas(() => ({ ...createCanvasNode(CanvasNodeType.Image, { x: 0, y: 0 }, imageMetadata(uploaded)), title: `导演台${shot.label || ""}截图` }));
-        lastStatus.push(result);
-      }
-      setStatus(lastStatus.length ? lastStatus[lastStatus.length - 1] : "导入四方位截图失败");
+      const mergedDataUrl = await mergeFourScreenshotsToGrid(results);
+      if (!mergedDataUrl) throw new Error("四方位截图合并失败");
+      const uploaded = await uploadImage(mergedDataUrl);
+      setStatus(await appendNodeToCanvas(() => ({ ...createCanvasNode(CanvasNodeType.Image, { x: 0, y: 0 }, imageMetadata(uploaded)), title: "导演台四方位截图" })));
     } catch (error) {
       setStatus(error instanceof Error ? error.message : "导入四方位截图失败");
     } finally {
