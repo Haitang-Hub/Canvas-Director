@@ -1,6 +1,6 @@
 # Canvas Director
 
-**English** · [简体中文](README_zh.md)
+[简体中文](README_zh.md) · **English**
 
 ![Version](https://img.shields.io/badge/version-v0.17.0-2da44e)
 ![License](https://img.shields.io/badge/license-MIT-d4a72c)
@@ -19,7 +19,7 @@ No backend is required. The browser connects directly to the OpenAI-compatible A
 
 - Pan and zoom an infinite canvas, with mini-map navigation, zoom slider and view reset.
 - Three background styles (dot grid, grid lines, blank) with light and dark themes.
-- Drag, resize, connect, copy and paste nodes; box select, multi-select, group / ungroup.
+- Drag, resize, connect, copy and paste nodes; box select, multi-select, group and ungroup.
 - Undo and redo for nodes, connections, viewport, background and assistant sessions.
 - Double-click empty space to create a node; full keyboard shortcut support.
 
