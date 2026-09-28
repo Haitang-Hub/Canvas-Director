@@ -692,6 +692,34 @@ function InfiniteCanvasPage() {
     }, [nodes, size.height, size.width, viewport.k, viewport.x, viewport.y]);
 
     const nodeById = useMemo(() => new Map(nodes.map((node) => [node.id, node])), [nodes]);
+
+    const viewBounds = useMemo(() => {
+        const padding = 280;
+        const rect = containerRef.current?.getBoundingClientRect();
+        const width = rect?.width || size.width;
+        const height = rect?.height || size.height;
+        const left = -viewport.x / viewport.k - padding;
+        const top = -viewport.y / viewport.k - padding;
+        return { left, top, right: left + width / viewport.k + padding * 2, bottom: top + height / viewport.k + padding * 2 };
+    }, [nodes, size.height, size.width, viewport.k, viewport.x, viewport.y]);
+
+    const visibleConnections = useMemo(
+        () =>
+            connections.flatMap((connection) => {
+                const from = nodeById.get(connection.fromNodeId);
+                const to = nodeById.get(connection.toNodeId);
+                if (!from || !to) return [];
+                const startX = from.position.x + from.width;
+                const startY = from.position.y + from.height / 2;
+                const endX = to.position.x;
+                const endY = to.position.y + to.height / 2;
+                const curvature = Math.max(Math.abs(endX - startX) * 0.5, 50);
+                const inView =
+                    Math.max(startX + curvature, endX) > viewBounds.left && Math.min(startX, endX - curvature) < viewBounds.right && Math.max(startY, endY) > viewBounds.top && Math.min(startY, endY) < viewBounds.bottom;
+                return inView ? [{ connection, from, to }] : [];
+            }),
+        [connections, nodeById, viewBounds],
+    );
     // The toolbar follows a single selected node selected by click, creation, marquee, or keyboard.
     // It stays hidden for multi-selection and while isNodeDragging is true.
     const singleSelectedNodeId = selectedNodeIds.size === 1 ? Array.from(selectedNodeIds)[0] : null;
@@ -1332,14 +1360,13 @@ function InfiniteCanvasPage() {
                 }
 
                 const movedIds = new Set(initialPositions.map((item) => item.id));
-                const previewNodes = nodesRef.current.map((node) => {
-                    const initial = initialPositions.find((item) => item.id === node.id);
-                    return initial ? { ...node, position: { x: initial.x + dx, y: initial.y + dy } } : node;
-                });
-                setDropTargetGroupId(findGroupDropTarget(movedIds, previewNodes)?.id || null);
-
                 if (rafRef.current) cancelAnimationFrame(rafRef.current);
                 rafRef.current = requestAnimationFrame(() => {
+                    const previewNodes = nodesRef.current.map((node) => {
+                        const initial = initialPositions.find((item) => item.id === node.id);
+                        return initial ? { ...node, position: { x: initial.x + dx, y: initial.y + dy } } : node;
+                    });
+                    setDropTargetGroupId(findGroupDropTarget(movedIds, previewNodes)?.id || null);
                     setNodes((prev) =>
                         prev.map((node) => {
                             const initial = initialPositions.find((item) => item.id === node.id);
