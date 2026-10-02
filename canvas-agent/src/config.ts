@@ -6,6 +6,45 @@ import path from "node:path";
 export const DEFAULT_PORT = 17371;
 export const CONFIG_DIR = path.join(os.homedir(), ".infinite-canvas");
 export const CONFIG_FILE = path.join(CONFIG_DIR, "canvas-agent.json");
+export const CODEX_CONFIG_FILE = path.join(os.homedir(), ".codex", "config.toml");
+let pinnedCodexModelCache: string | null | undefined;
+
+/**
+ * 读取 ~/.codex/config.toml 中自定义 model_provider 固定的模型。
+ * 仅当 provider 不是内置 openai 且显式配置了 model 时返回模型名，
+ * 让网页端模型列表和 turn 请求与本地 Codex 配置保持一致，进程内只读取一次。
+ */
+export function getPinnedCodexModel(): string | undefined {
+    if (pinnedCodexModelCache !== undefined) return pinnedCodexModelCache ?? undefined;
+    pinnedCodexModelCache = null;
+    try {
+        const scalars = parseTopLevelTomlScalars(fs.readFileSync(CODEX_CONFIG_FILE, "utf8"));
+        const provider = scalars.model_provider;
+        const model = scalars.model?.trim();
+        if (provider && provider !== "openai" && model) pinnedCodexModelCache = model;
+    } catch {
+        // 没有 Codex 配置文件时按默认 OpenAI 目录处理。
+    }
+    return pinnedCodexModelCache ?? undefined;
+}
+
+/** 只提取 TOML 顶层 key = "value" 形式的字符串标量，忽略注释和各个 [section]。 */
+function parseTopLevelTomlScalars(text: string): Record<string, string> {
+    const result: Record<string, string> = {};
+    let passedFirstTable = false;
+    for (const rawLine of text.split(/\r?\n/)) {
+        const line = rawLine.trim();
+        if (/^\[[^\]]*]$/.test(line)) {
+            passedFirstTable = true;
+            continue;
+        }
+        if (passedFirstTable || !line || line.startsWith("#")) continue;
+        const match = line.match(/^([A-Za-z0-9_-]+)\s*=\s*"([^"]*)"/);
+        if (match) result[match[1]] = match[2];
+    }
+    return result;
+}
+
 export const VERSION = readPackageVersion();
 export const AGENT_PROMPT = fs.readFileSync(new URL("../agent-instructions.md", import.meta.url), "utf8");
 const initializedWorkspaces = new Set<string>();

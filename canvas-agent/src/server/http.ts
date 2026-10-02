@@ -9,7 +9,7 @@ import type { CodexReasoningEffort, CodexSkillSelector } from "../agent/codex-pr
 import { messageMetadataStore } from "../agent/message-metadata.js";
 import type { AgentAttachment, AgentPermissionMode } from "../agent/types.js";
 import { AGENT_PROTOCOL_VERSION, CanvasSession } from "../canvas/session.js";
-import { DEFAULT_PORT, ensureSiteWorkspace, loadConfig, saveConfig, updateSiteWorkspace, type CanvasAgentConfig } from "../config.js";
+import { DEFAULT_PORT, ensureSiteWorkspace, getPinnedCodexModel, loadConfig, saveConfig, updateSiteWorkspace, type CanvasAgentConfig } from "../config.js";
 import { logger } from "../utils/logger.js";
 import { checkVersions } from "../version-check.js";
 import { SkillStore, SkillStoreError } from "../skills/store.js";
@@ -22,6 +22,8 @@ export function startHttpServer() {
     saveConfig(config);
 
     const initialWorkspace = ensureSiteWorkspace(config);
+    /** 本地 Codex 配置了自定义 provider 时，所有模型请求固定使用该模型，推理强度沿用 Codex 配置默认值。 */
+    const pinnedCodexModel = getPinnedCodexModel();
     const session = new CanvasSession(initialWorkspace.activeThreadId || "");
     const skillStore = new SkillStore(initialWorkspace.workspacePath);
     /** 将 Agent 事件广播到所属线程或全部网页。 */
@@ -186,8 +188,8 @@ export function startHttpServer() {
         if (source !== "conversation" && source !== "canvas") return res.status(400).json({ ok: false, error: "Skill 草稿来源无效" });
         const clientId = String(req.body?.clientId || "");
         if (!clientId || !session.hasClient(clientId)) return res.status(409).json({ ok: false, error: "发起提炼的网页已断开，请重新连接后再试" });
-        const model = String(req.body?.model || "") || undefined;
-        const effort = reasoningEffort(req.body?.effort);
+        const model = pinnedCodexModel ?? (String(req.body?.model || "") || undefined);
+        const effort = pinnedCodexModel ? undefined : reasoningEffort(req.body?.effort);
         const previousCodexState = session.codexStateSnapshot;
         skillDraftRunning = true;
         try {
@@ -307,8 +309,8 @@ export function startHttpServer() {
         if (!activeThreadId || !["ready", "warning"].includes(conversation.status)) {
             return res.status(409).json({ ok: false, code: "CONVERSATION_NOT_READY", error: "Codex 对话仍在初始化，请等待 MCP 加载完成", state: conversation });
         }
-        const model = String(req.body?.model || "") || undefined;
-        const effort = reasoningEffort(req.body?.effort);
+        const model = pinnedCodexModel ?? (String(req.body?.model || "") || undefined);
+        const effort = pinnedCodexModel ? undefined : reasoningEffort(req.body?.effort);
         const skill = req.body?.skill === undefined ? undefined : await resolveCodexSkill(emit, workspace.workspacePath, skillSelector(req.body.skill), true);
         const messageId = String(req.body?.messageId || Date.now());
         const messageText = String(req.body?.messageText || prompt || `发送了 ${attachments.length} 张图片`);

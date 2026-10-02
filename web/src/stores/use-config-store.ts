@@ -165,7 +165,7 @@ export function guessCapability(name: string): ModelCapability {
 
 /** 已知模型名称 → image 模板数组索引（用于自动绑定默认脚本）。 */
 const DEFAULT_MODEL_SCRIPTS: Record<string, number> = {
-    "agnes-image-2.1-flash": 2,
+    "agnes-image-2.5-flash": 2,
 };
 
 /** 已知模型名称模式 → 视频默认脚本（用于自动绑定）。 */
