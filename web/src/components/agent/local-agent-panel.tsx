@@ -595,9 +595,9 @@ export function LocalAgentPanel({ embedded, headless, autoConnect }: { embedded?
             const models = data.flatMap((item) => {
                 const name = item.displayName || item.model;
                 const efforts = item.supportedReasoningEfforts.filter(({ reasoningEffort }) => AGENT_REASONING_EFFORTS.has(reasoningEffort));
-                if (item.model === "codex-auto-review" || names.has(name) || !efforts.length) return [];
+                if (item.model === "codex-auto-review" || names.has(name)) return [];
                 names.add(name);
-                const defaultReasoningEffort = efforts.some((effort) => effort.reasoningEffort === item.defaultReasoningEffort) ? item.defaultReasoningEffort : efforts[0].reasoningEffort;
+                const defaultReasoningEffort = efforts.some((effort) => effort.reasoningEffort === item.defaultReasoningEffort) ? item.defaultReasoningEffort : (efforts[0]?.reasoningEffort ?? "");
                 return [{ ...item, supportedReasoningEfforts: efforts, defaultReasoningEffort }];
             });
             if (!models.length) return;
@@ -605,7 +605,7 @@ export function LocalAgentPanel({ embedded, headless, autoConnect }: { embedded?
             const current = models.find((item) => item.model === savedModel) || models.find((item) => item.isDefault) || models[0];
             const savedEffort = useAgentStore.getState().reasoningEffort;
             const efforts = current.supportedReasoningEfforts.map((item) => item.reasoningEffort);
-            const nextEffort = efforts.includes(savedEffort as AgentReasoningEffort) ? savedEffort as AgentReasoningEffort : current.defaultReasoningEffort || efforts[0];
+            const nextEffort = efforts.length ? (efforts.includes(savedEffort as AgentReasoningEffort) ? savedEffort as AgentReasoningEffort : current.defaultReasoningEffort || efforts[0]) : "";
             localStorage.setItem("canvas-agent-model", current.model);
             localStorage.setItem("canvas-agent-reasoning-effort", nextEffort);
             setAgentState({ models, model: current.model, reasoningEffort: nextEffort });

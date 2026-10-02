@@ -4,13 +4,14 @@ import path from "node:path";
 import { z } from "zod";
 
 import type { CanvasSnapshot } from "../canvas/types.js";
+import { getPinnedCodexModel } from "../config.js";
 import { logger } from "../utils/logger.js";
 import { errorMessage, field, type JsonRecord } from "../utils/value.js";
 import { CodexAppClient, CodexReportedError } from "./codex-client.js";
 import { codexEventHistory } from "./codex-event-history.js";
 import { settledTurnIds, summarizeCodexThread, threadMessages } from "./codex-history.js";
 import { messageMetadataStore } from "./message-metadata.js";
-import type { CodexReasoningEffort, CodexSkillMetadata, CodexSkillSelector, CodexSkillsListEntry } from "./codex-protocol.js";
+import type { CodexModel, CodexReasoningEffort, CodexSkillMetadata, CodexSkillSelector, CodexSkillsListEntry } from "./codex-protocol.js";
 import type { AgentAttachment, AgentEmit, AgentPermissionMode } from "./types.js";
 
 type CodexRunOptions = { threadId?: string; cwd?: string; permissionMode?: AgentPermissionMode; model?: string; effort?: CodexReasoningEffort; skill?: CodexSkillSelector; messageText?: string; appEmit?: AgentEmit; onStart?: () => void; onThread?: (threadId: string) => void; onTurn?: (turnId: string) => void; onFinish?: () => void };
@@ -119,6 +120,20 @@ export async function listCodexThreads(emit: AgentEmit, options: { cwd: string; 
 
 /** 查询当前账号可用于新任务的 Codex 模型。 */
 export async function listCodexModels(emit: AgentEmit) {
+    const pinnedModel = getPinnedCodexModel();
+    if (pinnedModel) {
+        return {
+            data: [{
+                id: pinnedModel,
+                model: pinnedModel,
+                displayName: pinnedModel,
+                defaultReasoningEffort: "" as CodexReasoningEffort,
+                supportedReasoningEfforts: [],
+                isDefault: true,
+            } as CodexModel],
+            nextCursor: null,
+        };
+    }
     return await (await getCodexApp(emit)).listModels();
 }
 
