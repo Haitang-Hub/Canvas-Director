@@ -1,7 +1,7 @@
 import type { CSSProperties, MouseEvent as ReactMouseEvent, ReactNode, RefObject } from "react";
 import { useEffect, useRef, useState } from "react";
 import { Button, Segmented, Switch } from "antd";
-import { CircleDot, Eraser, Grid2x2, Group, Hand, Image as ImageIcon, Info, Moon, MousePointer2, Music2, Palette, Puzzle, Redo2, Settings2, Square, Sun, Trash2, Type, Undo2, Upload, Video, Clapperboard } from "lucide-react";
+import { CircleDot, Crosshair, Eraser, Grid2x2, Group, Hand, Image as ImageIcon, Info, Moon, MousePointer2, Music2, Palette, Puzzle, Redo2, Settings2, Square, Sun, Trash2, Type, Undo2, Upload, Video, Clapperboard } from "lucide-react";
 
 import { canvasThemes, type CanvasBackgroundMode, type CanvasColorTheme, type CanvasTheme } from "@/lib/canvas-theme";
 import { getNodePluginId, listNodeDefinitions, useNodeRegistryVersion } from "@/lib/canvas/node-registry";
@@ -32,6 +32,7 @@ export function CanvasToolbar({
     onCanvasToolChange,
     onBackgroundModeChange,
     onShowImageInfoChange,
+    onFocusSelected,
 }: {
     selectedCount: number;
     canvasTool: "select" | "pan";
@@ -55,6 +56,7 @@ export function CanvasToolbar({
     onCanvasToolChange: (tool: "select" | "pan") => void;
     onBackgroundModeChange: (mode: CanvasBackgroundMode) => void;
     onShowImageInfoChange: (show: boolean) => void;
+    onFocusSelected: () => void;
 }) {
     const wrapRef = useRef<HTMLDivElement>(null);
     const { t } = useTranslation();
@@ -169,6 +171,9 @@ export function CanvasToolbar({
                 {selectedCount ? (
                     <>
                         <Divider theme={theme} />
+                        <ToolbarButton id="tool-focus" label={t("canvas.toolbar.focus")} hovered={hovered} hoverStyle={hoverStyle} wrapRef={wrapRef} onTipX={setTipX} onHover={setHovered} onClick={onFocusSelected}>
+                            <Crosshair className="size-4.5" />
+                        </ToolbarButton>
                         <ToolbarButton id="tool-delete" label={t("canvas.deleteSelected")} hovered={hovered} hoverStyle={hoverStyle} wrapRef={wrapRef} onTipX={setTipX} onHover={setHovered} onClick={onDelete} danger>
                             <Trash2 className="size-4.5" />
                         </ToolbarButton>
@@ -371,6 +376,7 @@ function toolLabel(id: string, t: (key: string) => string) {
     if (id === "tool-extensions") return t("canvas.toolbar.extensions");
     if (id === "tool-upload") return t("canvas.toolbar.upload");
     if (id === "tool-style") return t("canvas.toolbar.appearance");
+    if (id === "tool-focus") return t("canvas.toolbar.focus");
     if (id === "tool-delete") return t("canvas.deleteSelected");
     if (id === "tool-clear") return t("canvas.toolbar.clear");
     return "";

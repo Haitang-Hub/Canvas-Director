@@ -51,6 +51,7 @@ import { exportCanvasProjects } from "@/lib/canvas/canvas-export";
 import { applyNodeConfigPatch, audioMetadata, buildAudioGenerationMetadata, buildImageGenerationMetadata, createCanvasNode, imageMetadata, videoMetadata } from "@/lib/canvas/canvas-node-factory";
 import { createDirectorDeskRecord, ensureDirectorDeskRecords, writeDirectorDeskRecords } from "@/pages/director/editor/workspaces/directorDeskRegistry";
 import { applyGroupSelection, applyUngroupSelection, canGroupSelectedNodes, canUngroupSelectedNodes, collectGroupMemberNodes, findContainingGroupId, findGroupDropTarget, getConnectionTargetAnchor, getGroupWrapRect, normalizeConnection, snapNodesIntoGroup } from "@/lib/canvas/canvas-node-geometry";
+import { focusViewportForNode, type FocusFrame } from "@/lib/canvas/canvas-node-geometry";
 import {
     audioExtension,
     buildAngleLabel,
@@ -154,6 +155,17 @@ export default function CanvasPage() {
     if (!mounted) return <CanvasRefreshShell />;
 
     return <InfiniteCanvasPage />;
+}
+
+function measureFocusFrame(container: HTMLDivElement | null, nodeId: string): FocusFrame {
+    if (!container) return {};
+    const nodeRect = container.querySelector<HTMLElement>(`[data-node-id="${nodeId}"]`)?.getBoundingClientRect();
+    const panelRect = container.querySelector<HTMLElement>(`[data-node-id="${nodeId}"] [data-node-panel]`)?.getBoundingClientRect();
+    const toolbarRect = document.querySelector<HTMLElement>(`[data-node-toolbar="${nodeId}"]`)?.getBoundingClientRect();
+    const dockRect = document.querySelector<HTMLElement>("[data-canvas-bottom-toolbar]")?.getBoundingClientRect();
+    const below = nodeRect && panelRect ? panelRect.bottom - nodeRect.bottom : 0;
+    const above = nodeRect && toolbarRect ? nodeRect.top - toolbarRect.top : 0;
+    return { above, below, bottomInset: dockRect && below > 0 ? Math.max(0, container.getBoundingClientRect().bottom - dockRect.top) : 0 };
 }
 
 function InfiniteCanvasPage() {
@@ -1002,7 +1014,7 @@ function InfiniteCanvasPage() {
         const next: CanvasNodeData = {
             ...source,
             id,
-            title: `${source.title} Copy`,
+            title: `${source.title || t("canvas.node.newNode")} ${t("canvas.node.copy")}`,
             position: { x: source.position.x + 36, y: source.position.y + 36 },
         };
 
@@ -1010,7 +1022,7 @@ function InfiniteCanvasPage() {
         setSelectedNodeIds(new Set([id]));
         setSelectedConnectionId(null);
         if (next.type !== CanvasNodeType.Group) setDialogNodeId(id);
-    }, []);
+    }, [t]);
 
     const copySelectedNodes = useCallback(() => {
         const selectedIds = selectedNodeIdsRef.current;
@@ -1028,7 +1040,7 @@ function InfiniteCanvasPage() {
 
         clipboardRef.current = {
             nodes: copiedNodes,
-            connections: connectionsRef.current.filter((connection) => selectedIds.has(connection.fromNodeId) && selectedIds.has(connection.toNodeId)).map((connection) => ({ ...connection })),
+            connections: connectionsRef.current.filter((connection) => selectedIds.has(connection.toNodeId)).map((connection) => ({ ...connection })),
         };
     }, []);
 
@@ -1055,7 +1067,7 @@ function InfiniteCanvasPage() {
             return {
                 ...node,
                 id,
-                title: node.title.endsWith(" Copy") ? node.title : `${node.title} Copy`,
+                title: node.title.endsWith(t("canvas.node.copySuffix")) ? node.title : `${node.title} ${t("canvas.node.copySuffix")}`,
                 position: {
                     x: node.position.x + dx,
                     y: node.position.y + dy,
@@ -1102,10 +1114,7 @@ function InfiniteCanvasPage() {
         (nodeId: string) => {
             const node = nodesRef.current.find((item) => item.id === nodeId);
             if (!node) return;
-            const worldX = node.position.x + node.width / 2;
-            const worldY = node.position.y + node.height / 2;
-            const k = Math.min(Math.max(Math.min((size.width * 0.6) / node.width, (size.height * 0.6) / node.height), 0.05), 1);
-            const target = { x: size.width / 2 - worldX * k, y: size.height / 2 - worldY * k, k };
+            const target = focusViewportForNode(node, size, measureFocusFrame(containerRef.current, nodeId));
             setSelectedNodeIds(new Set([nodeId]));
             setSelectedConnectionId(null);
             setContextMenu(null);
@@ -1126,6 +1135,16 @@ function InfiniteCanvasPage() {
         },
         [size.height, size.width],
     );
+
+    const focusNodeRef = useRef(focusNode);
+    useEffect(() => {
+        focusNodeRef.current = focusNode;
+    }, [focusNode]);
+
+    const focusSelectedNode = useCallback(() => {
+        const nodeId = selectedNodeIdsRef.current.values().next().value;
+        if (nodeId) focusNode(nodeId);
+    }, [focusNode]);
 
     useEffect(() => () => void (focusAnimRef.current && cancelAnimationFrame(focusAnimRef.current)), []);
 
@@ -1343,6 +1362,10 @@ function InfiniteCanvasPage() {
                 setDialogNodeId((current) => (current === clickedNodeId ? current : null));
             } else if (clickedNode?.type !== CanvasNodeType.Group) {
                 setDialogNodeId(clickedNodeId);
+                if (useConfigStore.getState().config.autoFocusOnSelect) {
+                    // Wait for the generation panel to render so centering accounts for it.
+                    requestAnimationFrame(() => focusNodeRef.current(clickedNodeId));
+                }
             }
         }
     }, []);
@@ -3272,8 +3295,6 @@ function InfiniteCanvasPage() {
                         />
                     ))}
 
-                    {referencePickerNodeId ? <button type="button" className="absolute left-1/2 top-4 z-[90] -translate-x-1/2 rounded-full border px-4 py-2 text-sm font-medium shadow-lg backdrop-blur" style={{ background: theme.toolbar.panel, borderColor: theme.toolbar.border }} onClick={exitNodeReferenceSelection}>{t("canvas.references.selectingHint")}</button> : null}
-
                     {selectionBox ? (
                         <svg
                             className="pointer-events-none absolute z-[100] overflow-visible"
@@ -3287,10 +3308,11 @@ function InfiniteCanvasPage() {
                             <rect width="100%" height="100%" fill={theme.canvas.selectionFill} stroke={theme.canvas.selectionStroke} strokeOpacity={0.55} strokeWidth={1 / viewport.k} strokeDasharray={`${6 / viewport.k} ${4 / viewport.k}`} />
                         </svg>
                     ) : null}
-                    {pendingConnectionCreate ? <ConnectionCreateMenu pending={pendingConnectionCreate} onCreate={(type) => createConnectedNode(type, pendingConnectionCreate)} onClose={cancelPendingConnectionCreate} /> : null}
+                    {pendingConnectionCreate ? <ConnectionCreateMenu pending={pendingConnectionCreate} scale={viewport.k} onCreate={(type) => createConnectedNode(type, pendingConnectionCreate)} onClose={cancelPendingConnectionCreate} /> : null}
                     {nodeCreatePosition ? (
                         <NodeCreateMenu
                             position={nodeCreatePosition}
+                            scale={viewport.k}
                             onCreate={(type) => {
                                 createNode(type, nodeCreatePosition);
                                 setNodeCreatePosition(null);
@@ -3300,8 +3322,10 @@ function InfiniteCanvasPage() {
                     ) : null}
                 </InfiniteCanvas>
 
+                {referencePickerNodeId ? <button type="button" className="absolute left-1/2 top-4 z-[90] -translate-x-1/2 rounded-full border px-4 py-2 text-sm font-medium shadow-lg backdrop-blur" style={{ background: theme.toolbar.panel, borderColor: theme.toolbar.border }} onClick={exitNodeReferenceSelection}>{t("canvas.references.selectingHint")}</button> : null}
+
                 <CanvasNodeHoverToolbar
-                    node={isNodeDragging || isNodeResizing || nodeImageSettingsOpen || expandedBatchNodeIds.has(toolbarNode?.id || "") ? null : toolbarNode}
+                    node={isNodeDragging || isNodeResizing || nodeImageSettingsOpen || Boolean(referencePickerNodeId) || expandedBatchNodeIds.has(toolbarNode?.id || "") ? null : toolbarNode}
                     viewport={viewport}
                     extraTools={toolbarNode ? buildNodeToolbarItems(toolbarNode) : undefined}
                     onKeep={keepNodeToolbar}
@@ -3367,6 +3391,7 @@ function InfiniteCanvasPage() {
                     onCanvasToolChange={setCanvasTool}
                     onBackgroundModeChange={setBackgroundMode}
                     onShowImageInfoChange={setShowImageInfo}
+                    onFocusSelected={focusSelectedNode}
                 />
 
                 {isMiniMapOpen ? <Minimap nodes={nodes} viewport={viewport} viewportSize={size} onViewportChange={setViewport} /> : null}

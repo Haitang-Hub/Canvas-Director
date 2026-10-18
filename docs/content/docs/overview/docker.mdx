@@ -8,7 +8,7 @@ description: Deploy Infinite Canvas with Docker Compose
 ## Use the published image
 
 ```bash
-git clone git@github.com:basketikun/infinite-canvas.git
+git clone git@github.com:Haitang-Hub/Canvas-Director.git
 cd infinite-canvas
 docker compose up -d
 ```
@@ -51,7 +51,7 @@ No analytics are enabled by default. A deployment can enable GA4, Baidu Analytic
 ```yaml
 services:
   app:
-    image: ghcr.io/basketikun/infinite-canvas:latest
+    image: ghcr.io/haitang-hub/canvas-director:latest
     ports:
       - "3000:3000"
     environment:

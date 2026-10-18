@@ -9,9 +9,11 @@ import type { AiConfig } from "@/stores/use-config-store";
 
 const qualityOptions = [
     { value: "auto", labelKey: "auto" },
-    { value: "high", labelKey: "high" },
-    { value: "medium", labelKey: "medium" },
     { value: "low", labelKey: "low" },
+    { value: "medium", labelKey: "medium" },
+    { value: "high", labelKey: "high" },
+    { value: "xhigh", labelKey: "xhigh" },
+    { value: "max", labelKey: "max" },
 ];
 const DIMENSION_STEP = 16;
 const IMAGE_MIN_PIXELS = 655360;
@@ -65,7 +67,7 @@ export function ImageSettingsPanel({ config, onConfigChange, theme, showTitle = 
                 {showTitle ? <div className="text-lg font-semibold">{t("settingsPanels.image.title")}</div> : null}
                 <div className="space-y-2.5">
                     <SettingTitle color={theme.node.muted}>{t("settingsPanels.image.quality")}</SettingTitle>
-                    <div className="grid grid-cols-4 gap-2.5">
+                    <div className="grid grid-cols-3 gap-2.5">
                         {qualityOptions.map((item) => (
                             <OptionPill key={item.value} selected={quality === item.value} theme={theme} onClick={() => onConfigChange("quality", item.value)}>
                                 {t(`settingsPanels.common.${item.labelKey}`)}

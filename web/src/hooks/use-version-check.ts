@@ -4,8 +4,8 @@ import { useTranslation } from "react-i18next";
 import { APP_VERSION } from "@/constant/env";
 import { parseChangelog, type ReleaseInfo } from "@/lib/release";
 
-const latestVersionUrl = "https://raw.githubusercontent.com/basketikun/infinite-canvas/main/VERSION";
-const latestChangelogUrl = "https://raw.githubusercontent.com/basketikun/infinite-canvas/main/CHANGELOG.md";
+const latestVersionUrl = "https://raw.githubusercontent.com/Haitang-Hub/Canvas-Director/main/VERSION";
+const latestChangelogUrl = "https://raw.githubusercontent.com/Haitang-Hub/Canvas-Director/main/CHANGELOG.md";
 
 function readLocalReleases(): ReleaseInfo[] {
     return __APP_RELEASES__ || [];
@@ -21,6 +21,31 @@ function isNewerVersion(latestVersion: string, currentVersion: string) {
     const current = toVersionParts(currentVersion);
     if (!latest || !current) return false;
     return latest.some((value, index) => value > current[index] && latest.slice(0, index).every((part, prevIndex) => part === current[prevIndex]));
+}
+
+function compareReleaseVersions(a: string, b: string) {
+    if (a === b) return 0;
+    if (a === "Unreleased") return -1;
+    if (b === "Unreleased") return 1;
+    const pa = toVersionParts(a);
+    const pb = toVersionParts(b);
+    if (!pa || !pb) return b.localeCompare(a);
+    for (let i = 0; i < 3; i++) {
+        if (pa[i] !== pb[i]) return pb[i] - pa[i];
+    }
+    return 0;
+}
+
+/** Merge upstream releases into the local changelog: local entries win on version conflicts, upstream-only versions are kept. */
+function mergeReleases(local: ReleaseInfo[], remote: ReleaseInfo[], latestVersion: string): ReleaseInfo[] {
+    const localVersions = new Set(local.map((release) => release.version));
+    const remoteOnly = remote.filter((release) => {
+        if (localVersions.has(release.version)) return false;
+        // Upstream "Unreleased" content is already covered locally once that version is released here.
+        if (release.version === "Unreleased" && localVersions.has(latestVersion)) return false;
+        return true;
+    });
+    return [...remoteOnly, ...local].sort((a, b) => compareReleaseVersions(a.version, b.version));
 }
 
 export function useVersionCheck() {
@@ -54,8 +79,9 @@ export function useVersionCheck() {
                 if (!versionResponse.ok) throw new Error(t("version.readFailed"));
                 if (!changelogResponse.ok) throw new Error(t("version.changelogFailed"));
                 const [version, changelog] = await Promise.all([versionResponse.text(), changelogResponse.text()]);
-                setLatestVersion(version.trim() || currentVersion);
-                if (changelog.trim()) setReleases(parseChangelog(changelog));
+                const nextVersion = version.trim() || currentVersion;
+                setLatestVersion(nextVersion);
+                if (changelog.trim()) setReleases(mergeReleases(localReleases, parseChangelog(changelog), nextVersion));
                 if (showMessage) message.success(t("version.updated"));
                 return true;
             } catch {

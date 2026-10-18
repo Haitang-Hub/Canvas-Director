@@ -28,6 +28,12 @@ const SKIP_REQUEST_HEADERS = new Set(["host", "connection", "content-length", "a
 /** fetch() already decoded and re-framed the body, so the upstream framing headers no longer apply. */
 const SKIP_RESPONSE_HEADERS = new Set(["content-encoding", "content-length", "transfer-encoding", "connection", "keep-alive"]);
 
+// ── Codex /responses upstream base URL ──────────────────────────────────────
+// Codex sends POST /responses to the proxy; we rewrite the path and forward
+// to the real API after stripping namespace-type tools that some providers
+// (e.g. Agnes) do not understand.
+const CODEX_UPSTREAM_BASE = "https://apihub.agnes-ai.com/v1";
+
 function readArg(args, name, fallback) {
     const index = args.indexOf(`--${name}`);
     return index >= 0 && args[index + 1] ? args[index + 1] : fallback;
@@ -74,6 +80,16 @@ function responseHeaders(upstream) {
     return headers;
 }
 
+/** 流式响应透传全部头（保留 Connection/Keep-Alive/Cache-Control 让客户端认为流是活的），只去 content-length。 */
+function streamResponseHeaders(upstream) {
+    const headers = { ...CORS_HEADERS };
+    upstream.headers.forEach((value, key) => {
+        if (key === "content-length" || key.startsWith("access-control-")) return;
+        headers[key] = value;
+    });
+    return headers;
+}
+
 function sendJson(res, status, payload) {
     res.writeHead(status, { ...CORS_HEADERS, "content-type": "application/json; charset=utf-8" });
     res.end(JSON.stringify(payload));
@@ -90,9 +106,34 @@ async function collectBody(stream) {
     return Buffer.concat(chunks);
 }
 
-/** 将字符串中的换行转为 \n 转义符，避免日志多行显示。 */
+/**
+ * 将字符串中的换行转为 \n 转义符，避免日志多行显示。
+ */
 function unline(str) {
     return typeof str === "string" ? str.replace(/\r?\n/g, "\\n") : str;
+}
+
+/**
+ * 剥离 tools 数组中 type === "namespace" 的条目。
+ * Codex CLI 将内置工具（exec/wait 等）和 MCP 工具包裹在 namespace 容器中，
+ * 但 Agnes API 只接受 function / web_search_preview / code_interpreter / mcp 类型。
+ */
+function stripNamespaceTools(bodyStr) {
+    try {
+        const obj = JSON.parse(bodyStr);
+        if (Array.isArray(obj.tools)) {
+            const before = obj.tools.length;
+            obj.tools = obj.tools.filter((t) => t && t.type !== "namespace");
+            if (obj.tools.length !== before) {
+                logFile(`    [proxy] stripped ${before - obj.tools.length} namespace tool(s)`);
+                console.log(`[${new Date().toLocaleTimeString()}] [proxy] stripped ${before - obj.tools.length} namespace tool(s)`);
+            }
+        }
+        return JSON.stringify(obj);
+    } catch {
+        // Not JSON — return as-is
+        return bodyStr;
+    }
 }
 
 /** 取 JSON 前 200 字符，并将换行转为 \n，确保单行输出。 */
@@ -106,8 +147,10 @@ function jsonSlice(bodyStr, len = 200) {
 const MAX_429_RETRIES = 5;
 const MAX_429_WAIT_MS = 30_000;
 
-async function forwardWithRetry(req, res, target, startedAt) {
-    const reqBody = req.method === "GET" || req.method === "HEAD" ? null : await readBody(req);
+async function forwardWithRetry(req, res, target, startedAt, bodyOverride) {
+    const reqBody = bodyOverride !== undefined
+        ? Buffer.from(bodyOverride, "utf8")
+        : (req.method === "GET" || req.method === "HEAD" ? null : await readBody(req));
     if (reqBody) {
         const bodyStr = reqBody.toString("utf8");
         logFile(`>>> ${req.method} ${target}`);
@@ -126,9 +169,33 @@ async function forwardWithRetry(req, res, target, startedAt) {
         try {
             const upstream = await fetch(target, { method: req.method, headers: requestHeaders(req), body: reqBody ?? undefined, redirect: "follow", signal: controller.signal });
             clearTimeout(proxyTimeout);
-            const respBody = await collectBody(upstream.body);
             const duration = ((Date.now() - startedAt) / 1000).toFixed(1);
             const contentType = upstream.headers.get("content-type") || "";
+
+            // 对 SSE / streaming 响应直接管道转发，避免缓冲导致 stream disconnected
+            const isStreamResp = contentType.includes("text/event-stream") || contentType.includes("streaming") || req.headers["accept"]?.includes("text/event-stream");
+            if (isStreamResp && upstream.body) {
+                logForward(req.method, target, `streaming`, startedAt, reqBody?.length);
+                logFile(`<<< STREAMING ${req.method} ${target}`);
+                res.writeHead(upstream.status, streamResponseHeaders(upstream));
+                const reader = upstream.body.getReader();
+                ;(async () => {
+                    try {
+                        while (true) {
+                            const { done, value } = await reader.read();
+                            if (done) break;
+                            res.write(value);
+                        }
+                        res.end();
+                    } catch (err) {
+                        console.error(`[${new Date().toLocaleTimeString()}] <<< stream error: ${err.message}`);
+                        if (!res.writableEnded) res.destroy();
+                    }
+                })();
+                return upstream.status;
+            }
+
+            const respBody = await collectBody(upstream.body);
             const isBinary = respBody.length > 1_000_000 || contentType.startsWith("video/") || contentType.startsWith("image/") || contentType.startsWith("application/octet-stream");
             const respStr = isBinary ? null : respBody.toString("utf8");
 
@@ -161,34 +228,118 @@ async function forwardWithRetry(req, res, target, startedAt) {
     }
 }
 
-async function forward(req, res, target, startedAt) {
-    return forwardWithRetry(req, res, target, startedAt);
+async function forward(req, res, target, startedAt, bodyOverride) {
+    return forwardWithRetry(req, res, target, startedAt, bodyOverride);
 }
 
 export function createProxyServer() {
     // 禁用 Node.js HTTP 服务器的内部 headers 和 keep-alive 超时，避免 undici fetch
     // 的 300s 默认 headersTimeout 截断长时间图片生成请求。
-    const server = createServer((req, res) => {
+    const server = createServer(async (req, res) => {
         if (req.method === "OPTIONS") {
             res.writeHead(204, CORS_HEADERS);
             res.end();
             return;
         }
-        const target = readTarget(req.url || "/");
+
+        const pathname = req.url || "/";
+        const startedAt = Date.now();
+        const method = req.method || "GET";
+
+        // ── Codex /responses 特殊路由 ─────────────────────────────────────────
+        // Codex CLI 发送 POST /responses 到 proxy；我们剥离 namespace 类型工具后
+        // 转发到真实的 Agnes API。
+        if (pathname === "/responses" || pathname.startsWith("/responses")) {
+            try {
+                const reqBodyBuf = await readBody(req);
+                const reqBodyStr = reqBodyBuf.toString("utf8");
+                const stripped = stripNamespaceTools(reqBodyStr);
+                const upstreamUrl = `${CODEX_UPSTREAM_BASE}/responses`;
+                const contentLength = Buffer.byteLength(stripped);
+                const headers = requestHeaders(req);
+                headers["content-length"] = String(contentLength);
+                // 保留原始 content-type
+                if (req.headers["content-type"]) headers["content-type"] = req.headers["content-type"];
+
+                logFile(`>>> CODEX ${method} ${upstreamUrl} reqBody=${reqBodyBuf.length}B -> stripped body=${Buffer.byteLength(stripped)}B`);
+                console.log(`[${new Date().toLocaleTimeString()}] >>> CODEX ${method} ${upstreamUrl} reqBody=${reqBodyBuf.length}B stripped=${Buffer.byteLength(stripped)}B`);
+
+                const controller = new AbortController();
+                const proxyTimeout = setTimeout(() => controller.abort(), 900_000);
+
+                try {
+                    const upstream = await fetch(upstreamUrl, {
+                        method,
+                        headers,
+                        body: stripped,
+                        redirect: "follow",
+                        signal: controller.signal,
+                    });
+                    clearTimeout(proxyTimeout);
+                    const contentType = upstream.headers.get("content-type") || "";
+                    const isStreamResp = contentType.includes("text/event-stream") || contentType.includes("streaming") || req.headers["accept"]?.includes("text/event-stream");
+
+                    if (isStreamResp && upstream.body) {
+                        logForward(method, upstreamUrl, `streaming`, startedAt, Buffer.byteLength(stripped));
+                        logFile(`<<< STREAMING CODEX ${method} ${upstreamUrl}`);
+                        res.writeHead(upstream.status, streamResponseHeaders(upstream));
+                        const reader = upstream.body.getReader();
+                        ;(async () => {
+                            try {
+                                while (true) {
+                                    const { done, value } = await reader.read();
+                                    if (done) break;
+                                    res.write(value);
+                                }
+                                res.end();
+                            } catch (err) {
+                                console.error(`[${new Date().toLocaleTimeString()}] <<< stream error: ${err.message}`);
+                                if (!res.writableEnded) res.destroy();
+                            }
+                        })();
+                        return;
+                    }
+
+                    const respBody = await collectBody(upstream.body);
+                    logForward(method, upstreamUrl, upstream.status, startedAt, Buffer.byteLength(stripped));
+                    logFile(`<<< ${upstream.status} body=${respBody.length}B${contentType ? " contentType=" + contentType : ""}`);
+                    if (respBody.length < 1_000_000) {
+                        logFile(`    body: ${jsonSlice(respBody.toString("utf8"))}`);
+                        console.log(`[${new Date().toLocaleTimeString()}] <<< ${upstream.status} body=${respBody.length}B ${jsonSlice(respBody.toString("utf8"))}`);
+                    }
+                    res.writeHead(upstream.status, responseHeaders(upstream));
+                    res.end(respBody);
+                } catch (error) {
+                    clearTimeout(proxyTimeout);
+                    const reason = error instanceof Error ? error.message : String(error);
+                    logForward(method, upstreamUrl, `failed (${reason})`, startedAt, null);
+                    logFile(`!!! CODEX ${method} ${upstreamUrl} FAILED: ${reason}`);
+                    if (!res.headersSent) {
+                        sendJson(res, 502, { error: reason });
+                    } else {
+                        res.destroy();
+                    }
+                }
+                return;
+            } catch (err) {
+                const reason = err instanceof Error ? err.message : String(err);
+                logFile(`!!! CODEX readBody failed: ${reason}`);
+                if (!res.headersSent) sendJson(res, 502, { error: reason });
+                return;
+            }
+        }
+
+        // ── 默认代理路由 ───────────────────────────────────────────────────────
+        const target = readTarget(pathname);
         if (!target) {
             sendJson(res, 200, { app: "infinite-canvas", proxy: pkg.name, version: pkg.version, usage: "/<full-target-url>" });
             return;
         }
-        const startedAt = Date.now();
-        const method = req.method || "GET";
         forward(req, res, target, startedAt)
             .catch((error) => {
                 const reason = error instanceof Error ? error.message : String(error);
-                // 提取 Node.js fetch 的详细错误信息（如 ECONNRESET、ENOTFOUND 等）
                 const cause = error.cause;
-                const detail = cause
-                    ? `${reason} [code=${cause.code || ""}, errno=${cause.errno || ""}, syscall=${cause.syscall || ""}]`
-                    : reason;
+                const detail = cause ? `${reason} [code=${cause.code || ""}, errno=${cause.errno || ""}, syscall=${cause.syscall || ""}]` : reason;
                 logForward(method, target, `failed (${detail})`, startedAt, req.headers["content-length"]);
                 logFile(`!!! ${method} ${target} FAILED: ${detail}`);
                 if (res.headersSent) {

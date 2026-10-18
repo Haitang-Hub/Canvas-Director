@@ -54,6 +54,8 @@ export type AiConfig = {
     canvasImageCount: string;
     proxyEnabled: boolean;
     proxyUrl: string;
+    nodeRegenerateBehavior: "new-node" | "overwrite";
+    autoFocusOnSelect: boolean;
 };
 
 export type WebdavSyncConfig = {
@@ -121,6 +123,8 @@ export const defaultConfig: AiConfig = {
     canvasImageCount: "3",
     proxyEnabled: false,
     proxyUrl: DEFAULT_LOCAL_PROXY_URL,
+    nodeRegenerateBehavior: "new-node",
+    autoFocusOnSelect: false,
 };
 
 export const defaultWebdavSyncConfig: WebdavSyncConfig = {
@@ -425,8 +429,13 @@ export function modelMatchesCapability(config: AiConfig, value: string, capabili
 export function resolveModelForCapability(config: AiConfig, currentModel: string | undefined, capability: ModelCapability) {
     const defaultModel = capability === "image" ? config.imageModel : capability === "video" ? config.videoModel : capability === "audio" ? config.audioModel : config.textModel;
     const fallbackModel = capability === "image" ? defaultConfig.imageModel : capability === "video" ? defaultConfig.videoModel : capability === "audio" ? defaultConfig.audioModel : defaultConfig.textModel;
-    if (currentModel && modelMatchesCapability(config, currentModel, capability)) return currentModel;
-    if (defaultModel && modelMatchesCapability(config, defaultModel, capability)) return defaultModel;
+    for (const model of [currentModel, defaultModel]) {
+        if (!model) continue;
+        const configuredCapability = modelCapabilityOf(config, model);
+        // Keep unavailable selections visible so the readiness check blocks the
+        // request. Only a known capability switch may choose another model.
+        if (!configuredCapability || configuredCapability === capability) return model;
+    }
     return fallbackModel;
 }
 
@@ -442,7 +451,7 @@ export function resolveModelScript(config: AiConfig, value: string) {
 
 function isAiConfigReady(config: AiConfig, model: string) {
     const channel = resolveModelChannel(config, model);
-    return Boolean(model.trim() && channel.baseUrl.trim() && channel.apiKey.trim());
+    return Boolean(model.trim() && channel.baseUrl.trim() && channel.apiKey.trim() && isModelValid(config, model));
 }
 
 export const useConfigStore = create<ConfigStore>()(
@@ -522,6 +531,8 @@ export const useConfigStore = create<ConfigStore>()(
                         canvasImageCount: config.canvasImageCount || "3",
                         proxyEnabled: Boolean(config.proxyEnabled),
                         proxyUrl: config.proxyUrl || DEFAULT_LOCAL_PROXY_URL,
+                        nodeRegenerateBehavior: config.nodeRegenerateBehavior || "new-node",
+                        autoFocusOnSelect: Boolean(config.autoFocusOnSelect),
                     },
                 };
             },
@@ -660,10 +671,19 @@ export function normalizeModelOptionValue(value: string | undefined, channels: M
     const decoded = decodeChannelModel(model);
     if (decoded) {
         const channel = channels.find((item) => item.id === decoded.channelId);
-        return channel && channel.models.some((item) => item.name === decoded.model) ? model : "";
+        return channel && channel.models.some((item) => item.name === decoded.model) ? model : model;
     }
     const channel = channels.find((item) => item.models.some((entry) => entry.name === model)) || channels[0];
     return channel && channel.models.some((item) => item.name === model) ? encodeChannelModel(channel.id, model) : model;
+}
+
+/** Returns true when the given encoded model option still points to a real channel + model. */
+export function isModelValid(config: AiConfig, value: string): boolean {
+    if (!value.trim()) return false;
+    const decoded = decodeChannelModel(value);
+    if (!decoded) return true;
+    const channel = config.channels.find((item) => item.id === decoded.channelId);
+    return Boolean(channel?.models.some((item) => item.name === decoded.model));
 }
 
 export function resolveModelChannel(config: AiConfig, value: string) {

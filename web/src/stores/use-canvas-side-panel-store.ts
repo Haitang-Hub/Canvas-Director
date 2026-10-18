@@ -7,6 +7,7 @@ export const CANVAS_SIDE_PANEL_DEFAULT_WIDTH = 280;
 
 const WIDTH_KEY = "canvas-side-panel-width";
 const OPEN_KEY = "canvas-side-panel-open";
+const VIEW_MODE_KEY = "canvas-side-panel-view-mode";
 
 function initialWidth() {
     if (typeof window === "undefined") return CANVAS_SIDE_PANEL_DEFAULT_WIDTH;
@@ -20,15 +21,22 @@ function initialOpen() {
     return localStorage.getItem(OPEN_KEY) !== "0";
 }
 
+function initialViewMode(): "list" | "grid" {
+    if (typeof window === "undefined") return "list";
+    return localStorage.getItem(VIEW_MODE_KEY) === "grid" ? "grid" : "list";
+}
+
 type CanvasSidePanelStore = {
     width: number;
     panelOpen: boolean;
     panelMounted: boolean;
     panelClosing: boolean;
+    nodeViewMode: "list" | "grid";
     setWidth: (width: number) => void;
     openPanel: () => void;
     closePanel: () => void;
     togglePanel: () => void;
+    setNodeViewMode: (mode: "list" | "grid") => void;
 };
 
 export const useCanvasSidePanelStore = create<CanvasSidePanelStore>((set, get) => ({
@@ -36,6 +44,7 @@ export const useCanvasSidePanelStore = create<CanvasSidePanelStore>((set, get) =
     panelOpen: initialOpen(),
     panelMounted: initialOpen(),
     panelClosing: false,
+    nodeViewMode: initialViewMode(),
     setWidth: (width) => set({ width }),
     openPanel: () => {
         if (typeof window !== "undefined") localStorage.setItem(OPEN_KEY, "1");
@@ -50,4 +59,8 @@ export const useCanvasSidePanelStore = create<CanvasSidePanelStore>((set, get) =
         }, CANVAS_SIDE_PANEL_MOTION_MS);
     },
     togglePanel: () => (get().panelOpen ? get().closePanel() : get().openPanel()),
+    setNodeViewMode: (mode) => {
+        if (typeof window !== "undefined") localStorage.setItem(VIEW_MODE_KEY, mode);
+        set({ nodeViewMode: mode });
+    },
 }));
