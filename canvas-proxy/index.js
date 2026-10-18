@@ -284,16 +284,52 @@ export function createProxyServer() {
                         logFile(`<<< STREAMING CODEX ${method} ${upstreamUrl}`);
                         res.writeHead(upstream.status, streamResponseHeaders(upstream));
                         const reader = upstream.body.getReader();
+                        const chunks = [];
+                        let hasCompletion = false;
+                        let eventCount = 0;
                         ;(async () => {
                             try {
                                 while (true) {
                                     const { done, value } = await reader.read();
                                     if (done) break;
+                                    chunks.push(value);
                                     res.write(value);
+                                    eventCount++;
+                                    // 检测是否收到 response.completed 事件（SSE 事件文本中包含该字段）
+                                    try {
+                                        const text = value.toString("utf8");
+                                        if (text.includes('"type":"response.completed"') || text.includes('"event":"response.completed"')) {
+                                            hasCompletion = true;
+                                        }
+                                    } catch {}
+                                }
+                                if (!hasCompletion) {
+                                    // 流在 response.completed 之前关闭，注入合成完成事件避免 Codex app-server 报 stream disconnected
+                                    const lastChunk = chunks.length > 0 ? chunks[chunks.length - 1].toString("utf8").slice(-500) : "(no chunks)";
+                                    console.error(`[${new Date().toLocaleTimeString()}] <<< stream ended without response.completed (events=${eventCount}, bytes=${chunks.reduce((a, c) => a + c.length, 0)})，注入合成错误完成事件`);
+                                    logFile(`!!! stream incomplete: ${eventCount} events, ${chunks.reduce((a, c) => a + c.length, 0)}B, last_chunk_tail: ${jsonSlice(lastChunk)}`);
+                                    // 尝试从首个事件中提取 response id
+                                    const allText = chunks.map(c => c.toString("utf8")).join("");
+                                    const errorMatches = allText.match(/"type":"error"/g);
+                                    if (errorMatches) {
+                                        console.error(`[${new Date().toLocaleTimeString()}] <<< found ${errorMatches.length} error event(s) in stream`);
+                                        logFile(`!!! error events found: ${errorMatches.length}`);
+                                    }
+                                    // 提取 response id（从 response.created 事件中取 id 字段）
+                                    let responseId = "";
+                                    try {
+                                        const createdMatch = allText.match(/"type"\s*:\s*"response\.created"[^}]*"id"\s*:\s*"([^"]+)"/);
+                                        if (createdMatch) responseId = createdMatch[1];
+                                    } catch {}
+                                    // 写入合成的 response.completed 事件（SSE data: 格式），让 Codex app-server 正常结束 turn
+                                    const syntheticDone = `data: {"type":"response.completed","response":{"id":"${responseId}","object":"response","model":"","status":"incomplete","incomplete_details":{"reason":"upstream_stream_ended_before_completion"},"usage":{"input_tokens":0,"output_tokens":0,"total_tokens":0}},"error":{"type":"api_error","message":"上游流在 response.completed 前意外断开，请检查模型服务状态"}}\n\n`;
+                                    res.write(syntheticDone);
+                                    console.error(`[${new Date().toLocaleTimeString()}] >>> injected synthetic response.completed (responseId=${responseId || "none"})`);
                                 }
                                 res.end();
                             } catch (err) {
                                 console.error(`[${new Date().toLocaleTimeString()}] <<< stream error: ${err.message}`);
+                                logFile(`!!! stream error: ${err.message}`);
                                 if (!res.writableEnded) res.destroy();
                             }
                         })();

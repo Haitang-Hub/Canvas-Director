@@ -1,5 +1,9 @@
 # CHANGELOG
 
+## v0.20.1 - 2026-10-18
+
++ [修复] canvas-proxy v0.1.2：当上游 SSE 流在 `response.completed` 前意外断开时，注入合成的错误完成事件，避免 Codex app-server 报 "stream disconnected before completion"；更新代理为本地直接运行 `node canvas-proxy/index.js` 或重新发布到 npm。
+
 ## v0.20.0 - 2026-10-18
 
 + [修复] 已选模型或所属渠道被移除时保留原选择并阻止生成及视频任务查询，避免静默切换到默认模型或其他渠道。
