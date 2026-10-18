@@ -5,7 +5,7 @@ import { buildApiUrl, withLocalProxy, type AiConfig, type ModelCapability, getDe
 
 type RequestOptions = { signal?: AbortSignal; timeoutMs?: number };
 
-/** 图片生成类请求默认超时（ms）。Agnes Image 生成较慢，代理端设为 900s，浏览器端同步匹配。 */
+/** 图片生成类请求默认超时（ms）。图片生成请求较慢，代理端设为 900s，浏览器端同步匹配。 */
 const DEFAULT_IMAGE_TIMEOUT_MS = 900_000;
 
 export type PluginHttpOptions = {

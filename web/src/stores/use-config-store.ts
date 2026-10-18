@@ -184,15 +184,15 @@ export function getDefaultImageScriptIndex(modelName: string): number | undefine
     return undefined;
 }
 
-/** 返回模型是否应自动绑定 Agnes Video 默认脚本。 */
+/** 返回模型是否应自动绑定视频默认脚本。 */
 export function shouldApplyDefaultVideoScript(modelName: string): boolean {
     const key = modelName.toLowerCase().trim();
     return DEFAULT_VIDEO_SCRIPT_PATTERNS.some((pattern) => key.includes(pattern));
 }
 
-/** Agnes Image 2.1 Flash 默认调用脚本（模板索引 2）。 */
+/** 图片默认调用脚本（模板索引 2）。 */
 export const DEFAULT_AGNES_IMAGE_SCRIPT = `/**
- * Agnes Image 2.1 Flash: text-to-image and image-to-image.
+ * 图片生成模板：text-to-image 和 image-to-image。
  * Key differences from OpenAI:
  * - response_format must be inside extra_body, not at top level
  * - image-to-image sends reference images via extra_body.image (JSON array), not multipart
@@ -268,9 +268,9 @@ return await generateImage({
   request,
 });`;
 
-/** Agnes Video V2.0 默认调用脚本（正确的 URL 路径：result.url，非 result.metadata?.url）。 */
+/** 视频默认调用脚本（正确的 URL 路径：result.url，非 result.metadata?.url）。 */
 export const DEFAULT_AGNES_VIDEO_SCRIPT = `/**
- * Agnes Video V2.0: text-to-video, image-to-video, and keyframe animation.
+ * 视频生成模板：text-to-video、image-to-video 和关键帧动画。
  * Asynchronous API: create task → poll → retrieve result.
  * Key differences from OpenAI video:
  * - endpoint is POST /v1/videos (JSON body), not multipart
@@ -279,8 +279,8 @@ export const DEFAULT_AGNES_VIDEO_SCRIPT = `/**
  * - result URL is at top-level url field
  * @param {string} prompt
  * @param {string[]} images - reference image data URLs; first for img2vid, all for keyframes
- * @param {string[]} videos - reference video Files (unused by Agnes, kept for compatibility)
- * @param {string[]} audios - reference audio Files (unused by Agnes)
+ * @param {string[]} videos - reference video Files (unused by some providers, kept for compatibility)
+ * @param {string[]} audios - reference audio Files (unused by some providers)
  * @param {object} params
  * @param {string} params.mode - "frames" (first/last image) | "reference" | undefined (text-only)
  * @param {string} params.size - e.g. "1280x720" or "auto"
@@ -400,7 +400,7 @@ function migrateModelScripts(channels: ModelChannel[]): ModelChannel[] {
             if (script.includes("result.metadata?.url")) {
                 return { ...model, script: script.replace("result.metadata?.url", "result.url") };
             }
-            // Fix 2: Agnes 视频脚本轮询缺少 model_name 参数
+            // Fix 2: 视频脚本轮询缺少 model_name 参数
             if (script.includes("/agnesapi") && script.includes("video_id") && !script.includes("model_name: model")) {
                 return { ...model, script: script.replace("params: { video_id: videoId }", "params: { video_id: videoId, model_name: model }") };
             }

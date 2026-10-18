@@ -501,7 +501,7 @@ async function requestStreamingResponse(config: AiConfig, body: Record<string, u
 }
 
 // 标准 OpenAI Chat Completions(/v1/chat/completions)流式请求。
-// 这是所有 OpenAI 兼容网关(Agnes 等)与官方 OpenAI 通用支持的文本/视觉接口;
+// 这是所有 OpenAI 兼容网关与官方 OpenAI 通用支持的文本/视觉接口;
 // Responses API(/v1/responses)为 OpenAI 专有,多数兼容网关不支持。
 async function requestStreamingChatCompletions(config: AiConfig, messages: AiTextMessage[], onDelta?: (text: string) => void, options?: RequestOptions): Promise<string> {
     const response = await fetch(aiApiUrl(config, "/chat/completions"), {

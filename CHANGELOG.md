@@ -51,23 +51,14 @@
 + [修复] 多参考图编辑改为按 OpenAI 规范使用 `image[]` 提交多张参考图，避免兼容接口因重复 `image` 字段拒绝请求。
 + [修复] 通过 URL 导入 API 凭据时按 Base URL 更新已有渠道或新增独立渠道，不再覆盖渠道列表第一项；缺少或非法 Base URL 时不修改配置。
 
-## v0.17.3 - 2026-09-05
+## v0.17.1 - 2026-09-05
 
 + [新增] 顶部导航新增「3D导演台」：迁入独立 3D 导演台应用（three.js / React Three Fiber），拆分为两个页面——`/director` 首页保留顶部导航栏并跟随全局明暗主题，`/director/editor?instanceId=…` 编辑器为无导航栏的全屏页（固定暗色），支持导演台工作区独立管理、3D 场景摆位、人物道具模型库（内置 Guo/Mixamo 本地资源）、机位设置、运镜录制与参考视频导出；导演台样式全部作用域隔离在 .director-desk-app 内，不污染画布全局样式与主题，路由懒加载避免拖慢首屏。
-
-## v0.17.2 - 2026-09-05
-
 + [新增] 插件 AI 生成:思维导图、Mermaid 图、JSON 表格、LaTeX 公式节点复用文本节点同款生成面板——选中节点在下方输入提示词,上游图片/文本自动作为参考,结果流式写回节点并自动剥离代码块围栏;宿主内置生成面板新增 text 模式 writeBackToSelf;JSON 表格行拆分移至节点工具条,移除思维导图拆叶子功能;四个节点不再提供「移动/交互」开关,内容恒可交互(滚轮直接滚动内容),拖动与文本节点一致;插件 AI 的 generateText 现支持传入参考图(references)走图片理解通道。
-+ [修复] 文本生成与图片理解(图生文)的 OpenAI 格式内置请求由 Responses API(/v1/responses)改为标准 Chat Completions(/v1/chat/completions,messages + text/image_url,流式解析 choices[].delta.content),修复仅支持 Chat Completions 的 OpenAI 兼容渠道(如 Agnes)文本生成与图片理解 400 validation errors 的问题。
++ [修复] 文本生成与图片理解(图生文)的 OpenAI 格式内置请求由 Responses API(/v1/responses)改为标准 Chat Completions(/v1/chat/completions,messages + text/image_url,流式解析 choices[].delta.content),修复仅支持 Chat Completions 的 OpenAI 兼容渠道文本生成与图片理解 400 validation errors 的问题。
 + [修复] 本地插件节点无法拖动:Mermaid 图、代码运行、JSON 表格、思维导图、取色板、二维码、音频波形裁剪的节点根容器不再拦截 mousedown,仅输入控件(textarea/input)自行拦截,恢复画布拖拽。
 + [新增] 内置 12 个本地插件节点：Mermaid 图、LaTeX 公式、代码运行、JSON 表格、图片对比、取色板、草图、切图、思维导图、字数统计、二维码、音频波形裁剪，均支持从插件面板一键安装。
-
-## v0.17.1 - 2026-09-04
-
-+ [新增] 新增 Agnes Image 2.0 Flash 专用图片生成模板，支持文生图和图生图，`response_format` 正确置于 `extra_body` 内，参考图通过 `extra_body.image` 传入。
-+ [新增] 新增 Agnes Video V2.0 专用视频生成模板，支持文生视频、图生视频和关键帧动画；异步任务流程（创建任务 → 轮询 → 取顶层 `url` 字段）已内置，`num_frames` 自动按 `8n+1` 规则标准化。
-+ [修复] Agnes Video 脚本默认模板 URL 路径从错误的 `metadata.url` 更正为正确的顶层 `url` 字段；加载配置时自动将 localStorage 中保存的旧脚本迁移至正确路径，新添加的视频模型自动绑定默认脚本。
-+ [新增] Agnes 2.5 Flash 文本模型使用标准 OpenAI Chat Completions 格式，无需自定义脚本模板，开箱即用。
++ [新增] 新增图片/视频调用脚本模板系统，支持自定义脚本配置与参数扩展；升级 OpenAI Chat Completions 标准格式，兼容各类 OpenAI 兼容渠道。
 
 ## v0.17.0 - 2026-09-02
 
@@ -90,7 +81,7 @@
 
 ## v0.16.0 - 2026-08-18
 
-+ [新增] 提示词来源新增 Freestylefly GPT Image 2 内置来源。
++ [新增] 提示词来源新增 GPT Image 2 默认来源。
 + [调整] 移除火山方舟协议及 Seedance 专用适配。
 + [调整] 画布默认使用移动工具，可直接拖动元素或空白画布，按住 Control 可临时框选节点。
 + [调整] 双击多图节点统一放大预览图片，仅通过右上角张数按钮展开或收起图片组。
