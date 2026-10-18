@@ -45,7 +45,16 @@ function mergeReleases(local: ReleaseInfo[], remote: ReleaseInfo[], latestVersio
         if (release.version === "Unreleased" && localVersions.has(latestVersion)) return false;
         return true;
     });
-    return [...remoteOnly, ...local].sort((a, b) => compareReleaseVersions(a.version, b.version));
+    // Deduplicate both sides by version to guard against duplicate entries in either source.
+    const dedup = (list: ReleaseInfo[]): ReleaseInfo[] => {
+        const seen = new Set<string>();
+        return list.filter((r) => {
+            if (seen.has(r.version)) return false;
+            seen.add(r.version);
+            return true;
+        });
+    };
+    return [...dedup(remoteOnly), ...dedup(local)].sort((a, b) => compareReleaseVersions(a.version, b.version));
 }
 
 export function useVersionCheck() {

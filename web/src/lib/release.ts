@@ -5,6 +5,7 @@ export type ReleaseInfo = {
 };
 
 export function parseChangelog(content: string): ReleaseInfo[] {
+    const seen = new Set<string>();
     return content
         .split(/^## /m)
         .slice(1)
@@ -20,5 +21,10 @@ export function parseChangelog(content: string): ReleaseInfo[] {
                     .map((match) => ({ type: match[1], content: match[2] })),
             };
         })
-        .filter((release) => release.items.length);
+        .filter((release) => release.items.length)
+        .filter((release) => {
+            if (seen.has(release.version)) return false;
+            seen.add(release.version);
+            return true;
+        });
 }
