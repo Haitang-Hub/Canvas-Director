@@ -196,31 +196,27 @@ Docker 静态资源路径为待验证项，生产环境完整部署建议自行�
 
 ## 技术栈
 
-| 类别 | 技术 |
-| --- | --- |
-| 前端框架 | React 19 + TypeScript 5 |
-| 构建工具 | Vite 7 |
-| UI 组件 | Ant Design 6 + Tailwind CSS v4 |
-| 状态管理 | Zustand 5（localforage 持久化） |
-| 3D 渲染 | Three.js 0.184 + React Three Fiber 9 |
-| Agent 运行时 | Node.js ≥ 18 + @openai/codex |
-| 本地代理 | 纯 Node.js（CORS 转发） |
-| 插件协议 | MCP（Model Context Protocol） |
+- **前端框架**：React 19 + TypeScript 5
+- **构建工具**：Vite 7
+- **UI 组件**：Ant Design 6 + Tailwind CSS v4
+- **状态管理**：Zustand 5（localforage 持久化）
+- **3D 渲染**：Three.js 0.184 + React Three Fiber 9
+- **Agent 运行时**：Node.js ≥ 18 + @openai/codex
+- **本地代理**：纯 Node.js（CORS 转发）
+- **插件协议**：MCP（Model Context Protocol）
 
 ## 文档
 
 完整索引见 [docs/index.md](docs/index.md)。
 
-| 文档 | 说明 |
-| --- | --- |
-| [快速开始](docs/content/docs/overview/quick-start.zh-CN.mdx) | 安装配置与上手指南 |
-| [功能介绍](docs/content/docs/overview/features.zh-CN.mdx) | 全部功能详细说明 |
-| [画布节点指南](docs/content/docs/canvas/canvas-node-manual.zh-CN.mdx) | 各节点类型用法参考 |
-| [画布快捷键](docs/content/docs/canvas/canvas-shortcuts.zh-CN.mdx) | 快捷键一览 |
-| [本地开发](docs/content/docs/development/local-development.zh-CN.mdx) | 本地调试与构建 |
-| [Docker 部署](docs/content/docs/overview/docker.zh-CN.mdx) | 容器化部署方案 |
-| [Agent 连接说明](docs/content/docs/development/local-codex-canvas.zh-CN.mdx) | Codex Agent 集成方式 |
-| [安全说明](docs/content/docs/support/security.zh-CN.mdx) | 安全模型与漏洞反馈 |
+- [快速开始](docs/content/docs/overview/quick-start.zh-CN.mdx)：安装配置与上手指南
+- [功能介绍](docs/content/docs/overview/features.zh-CN.mdx)：全部功能详细说明
+- [画布节点指南](docs/content/docs/canvas/canvas-node-manual.zh-CN.mdx)：各节点类型用法参考
+- [画布快捷键](docs/content/docs/canvas/canvas-shortcuts.zh-CN.mdx)：快捷键一览
+- [本地开发](docs/content/docs/development/local-development.zh-CN.mdx)：本地调试与构建
+- [Docker 部署](docs/content/docs/overview/docker.zh-CN.mdx)：容器化部署方案
+- [Agent 连接说明](docs/content/docs/development/local-codex-canvas.zh-CN.mdx)：Codex Agent 集成方式
+- [安全说明](docs/content/docs/support/security.zh-CN.mdx)：安全模型与漏洞反馈
 
 ## 数据与安全
 
