@@ -1,8 +1,12 @@
 # CHANGELOG
 
-## v0.20.1 - 2026-10-18
+## Unreleased
 
-+ [修复] canvas-proxy v0.1.2：当上游 SSE 流在 `response.completed` 前意外断开时，注入合成的错误完成事件，避免 Codex app-server 报 "stream disconnected before completion"；更新代理为本地直接运行 `node canvas-proxy/index.js` 或重新发布到 npm。
++ [新增] 连接线选中时显示淡紫色、快速流动（朝目标节点）的虚线动画，取消选中后恢复为实线。
++ [新增] 设置「生成偏好」新增默认画面比例和默认视频比例，作为新建节点和重新生成的默认值，单个节点仍可单独覆盖。
++ [修复] 「已有内容的节点再次生成时」设置真正生效：选择原地重新生成时覆盖当前节点内容，选择新建节点时在旁侧创建新节点并保留原节点。
++ [修复] 生成请求尺寸会按默认画面比例自动合成，生成结果和节点框尺寸跟随设置的比例，不再忽略比例只按自动尺寸出图。
++ [修复] 当上游 SSE 流在 `response.completed` 前意外断开时，注入合成的错误完成事件，避免 Codex app-server 报 "stream disconnected before completion"；更新代理为本地直接运行 `node canvas-proxy/index.js` 或重新发布到 npm。
 
 ## v0.20.0 - 2026-10-18
 

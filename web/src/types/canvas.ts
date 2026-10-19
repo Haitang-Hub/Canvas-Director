@@ -89,6 +89,8 @@ export type CanvasNodeMetadata = {
     directorDeskId?: string; // 3D 导演台节点绑定的导演台实例编号。
     directorDeskName?: string;
     sourceDirectorNodeId?: string; // 从导演台导入到画布的节点所来源的导演台节点 id，用于连线与排序。
+    imageRatio?: string; // 节点级图片比例（覆盖全局默认）。
+    videoRatio?: string; // 节点级视频比例（覆盖全局默认）。
 };
 
 export type CanvasNodeData = {

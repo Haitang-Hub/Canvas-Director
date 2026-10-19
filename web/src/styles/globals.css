@@ -436,6 +436,17 @@
         top: 21px;
     }
 
+    @keyframes canvas-connection-flow {
+        to {
+            stroke-dashoffset: -10;
+        }
+    }
+
+    .canvas-connection-flow {
+        stroke-dasharray: 6 4;
+        animation: canvas-connection-flow 0.3s linear infinite;
+    }
+
     @keyframes canvas-batch-child-in {
         from {
             opacity: 0;

@@ -14,7 +14,7 @@ import { exportAppConfig, importAppConfig } from "@/services/config-file";
 import { syncAppDataToWebdav, type AppSyncDomainKey, type AppSyncProgressEvent } from "@/services/app-sync";
 import { testWebdavConnection, WEBDAV_MANIFEST_FILE_NAME } from "@/services/webdav-sync";
 import { audioFormatOptions, audioVoiceOptions, normalizeAudioSpeedValue } from "@/lib/audio-generation";
-import { computeMediaSize, inferMediaRatio, inferMediaScale, mediaScaleOptions, parseVideoResolution } from "@/lib/media-size";
+import { computeMediaSize, inferMediaRatio, inferMediaScale, mediaRatioOptions, mediaScaleOptions, parseVideoResolution, videoRatioOptions } from "@/lib/media-size";
 import { videoResolutionOptions } from "@/components/video-settings-panel";
 import { createModelChannel, modelOptionsFromChannels, normalizeModelOptionValue, selectableModelsByCapability, useConfigStore, type AiConfig, type ApiCallFormat, type ConfigTabKey, type ModelCapability, type ModelChannel } from "@/stores/use-config-store";
 
@@ -254,20 +254,40 @@ export function AppConfigPanel({ showDoneButton = false, initialTab = "channels"
                                     <Form.Item label={t("config.preferences.audioVoice")} className="mb-4">
                                         <Select value={config.audioVoice} options={audioVoiceOptions} onChange={(value) => updateConfig("audioVoice", value)} />
                                     </Form.Item>
-                                    <Form.Item label={t("config.preferences.audioFormat")} className="mb-4">
-                                        <Select value={config.audioFormat} options={audioFormatOptions} onChange={(value) => updateConfig("audioFormat", value)} />
-                                    </Form.Item>
-                                    <Form.Item label={t("config.preferences.audioSpeed")} className="mb-4">
-                                        <Input
-                                            type="number"
-                                            min={0.25}
-                                            max={4}
-                                            step={0.05}
-                                            value={config.audioSpeed}
-                                            onChange={(event) => updateConfig("audioSpeed", event.target.value)}
-                                            onBlur={(event) => updateConfig("audioSpeed", normalizeAudioSpeedValue(event.target.value))}
-                                        />
-                                    </Form.Item>
+                                </div>
+                                <div className="grid gap-4 md:grid-cols-2">
+                                    <div className="grid grid-cols-2 gap-4">
+                                        <Form.Item label={t("config.preferences.imageRatio")} className="mb-4">
+                                            <Select
+                                                value={config.imageRatio}
+                                                options={mediaRatioOptions.map((item) => ({ value: item.value, label: item.value === "auto" ? t("settingsPanels.common.auto") : item.value }))}
+                                                onChange={(value) => updateConfig("imageRatio", value)}
+                                            />
+                                        </Form.Item>
+                                        <Form.Item label={t("config.preferences.videoRatio")} className="mb-4">
+                                            <Select
+                                                value={config.videoRatio}
+                                                options={videoRatioOptions.map((item) => ({ value: item.value, label: item.value === "auto" ? t("settingsPanels.common.auto") : item.value }))}
+                                                onChange={(value) => updateConfig("videoRatio", value)}
+                                            />
+                                        </Form.Item>
+                                    </div>
+                                    <div className="grid grid-cols-2 gap-4">
+                                        <Form.Item label={t("config.preferences.audioFormat")} className="mb-4">
+                                            <Select value={config.audioFormat} options={audioFormatOptions} onChange={(value) => updateConfig("audioFormat", value)} />
+                                        </Form.Item>
+                                        <Form.Item label={t("config.preferences.audioSpeed")} className="mb-4">
+                                            <Input
+                                                type="number"
+                                                min={0.25}
+                                                max={4}
+                                                step={0.05}
+                                                value={config.audioSpeed}
+                                                onChange={(event) => updateConfig("audioSpeed", event.target.value)}
+                                                onBlur={(event) => updateConfig("audioSpeed", normalizeAudioSpeedValue(event.target.value))}
+                                            />
+                                        </Form.Item>
+                                    </div>
                                 </div>
                                 <Form.Item label={t("config.preferences.regenerateBehavior")} className="mb-4">
                                     <Radio.Group value={config.nodeRegenerateBehavior} onChange={(event) => updateConfig("nodeRegenerateBehavior", event.target.value)} className="flex flex-col gap-2">

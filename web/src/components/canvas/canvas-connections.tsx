@@ -4,6 +4,8 @@ import { canvasThemes } from "@/lib/canvas-theme";
 import { useThemeStore } from "@/stores/use-theme-store";
 import type { CanvasConnection, CanvasNodeData, ConnectionHandle, Position } from "@/types/canvas";
 
+const ACTIVE_CONNECTION_COLOR = "#d8b4fe";
+
 export function ConnectionPath({
     connection,
     from,
@@ -49,11 +51,12 @@ export function ConnectionPath({
             />
             <path
                 d={pathD}
-                stroke={active ? theme.node.activeStroke : theme.node.muted}
+                className={active ? "canvas-connection-flow" : undefined}
+                stroke={active ? ACTIVE_CONNECTION_COLOR : theme.node.muted}
                 strokeWidth={active ? 3 : 2}
                 strokeOpacity={active ? 1 : 0.82}
                 fill="none"
-                style={{ filter: active ? `drop-shadow(0 0 8px ${theme.node.activeStroke}66)` : undefined, pointerEvents: "none" }}
+                style={{ filter: active ? `drop-shadow(0 0 8px ${ACTIVE_CONNECTION_COLOR}66)` : undefined, pointerEvents: "none" }}
             />
         </g>
     );

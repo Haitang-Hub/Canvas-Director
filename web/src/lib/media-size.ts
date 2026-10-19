@@ -123,6 +123,13 @@ export function readMediaDimensions(size: string, scale: string, ratio: string, 
     return parsePixelSize(computed) || { width: 0, height: 0 };
 }
 
+/** Combine a resolution preset ("auto" | "1k" | "2k" | pixels) with a concrete ratio into the effective size value. */
+export function applyRatioToSize(size: string, ratio: string) {
+    if (!ratio || ratio === "auto") return size;
+    const scale = inferMediaScale(size);
+    return computeMediaSize(scale === "auto" ? "auto" : scale, ratio);
+}
+
 export function clampVideoSeconds(value: string) {
     const seconds = Math.floor(Number(value) || 6);
     return String(Math.max(VIDEO_SECONDS_MIN, Math.min(VIDEO_SECONDS_MAX, seconds)));

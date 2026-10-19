@@ -517,6 +517,8 @@ export default {
             regenerateBehaviorNewNode: "新建节点",
             regenerateBehaviorNewNodeDescription: "在旁侧创建新节点，保留原节点内容。",
             autoFocusOnSelect: "选中自动居中",
+            imageRatio: "默认画面比例",
+            videoRatio: "默认视频比例",
             systemPrompt: "系统提示词",
             systemPromptPlaceholder: "例如：你是一位擅长电影感写实摄影的视觉导演。",
         },

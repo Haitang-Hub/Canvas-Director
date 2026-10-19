@@ -10,6 +10,7 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const LOG_DIR = `${__dirname}/logs`;
 const LOG_FILE = `${LOG_DIR}/proxy.log`;
 mkdirSync(LOG_DIR, { recursive: true });
+logFile(`[proxy] v${pkg.version} starting on port ${process.env.PROXY_PORT || 23210}`);
 
 function logFile(msg) {
     appendFileSync(LOG_FILE, `[${new Date().toISOString()}] ${msg}\n`);
@@ -308,6 +309,7 @@ export function createProxyServer() {
                                     const lastChunk = chunks.length > 0 ? chunks[chunks.length - 1].toString("utf8").slice(-500) : "(no chunks)";
                                     console.error(`[${new Date().toLocaleTimeString()}] <<< stream ended without response.completed (events=${eventCount}, bytes=${chunks.reduce((a, c) => a + c.length, 0)})，注入合成错误完成事件`);
                                     logFile(`!!! stream incomplete: ${eventCount} events, ${chunks.reduce((a, c) => a + c.length, 0)}B, last_chunk_tail: ${jsonSlice(lastChunk)}`);
+                                    logFile(`>>> INJECTING synthetic response.completed (responseId=${responseId || "none"})`);
                                     // 尝试从首个事件中提取 response id
                                     const allText = chunks.map(c => c.toString("utf8")).join("");
                                     const errorMatches = allText.match(/"type":"error"/g);
@@ -325,6 +327,7 @@ export function createProxyServer() {
                                     const syntheticDone = `data: {"type":"response.completed","response":{"id":"${responseId}","object":"response","model":"","status":"incomplete","incomplete_details":{"reason":"upstream_stream_ended_before_completion"},"usage":{"input_tokens":0,"output_tokens":0,"total_tokens":0}},"error":{"type":"api_error","message":"上游流在 response.completed 前意外断开，请检查模型服务状态"}}\n\n`;
                                     res.write(syntheticDone);
                                     console.error(`[${new Date().toLocaleTimeString()}] >>> injected synthetic response.completed (responseId=${responseId || "none"})`);
+                                    logFile(`>>> INJECTED OK responseId=${responseId || "none"}`);
                                 }
                                 res.end();
                             } catch (err) {

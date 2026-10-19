@@ -56,6 +56,8 @@ export type AiConfig = {
     proxyUrl: string;
     nodeRegenerateBehavior: "new-node" | "overwrite";
     autoFocusOnSelect: boolean;
+    imageRatio: string;
+    videoRatio: string;
 };
 
 export type WebdavSyncConfig = {
@@ -125,6 +127,8 @@ export const defaultConfig: AiConfig = {
     proxyUrl: DEFAULT_LOCAL_PROXY_URL,
     nodeRegenerateBehavior: "new-node",
     autoFocusOnSelect: false,
+    imageRatio: "auto",
+    videoRatio: "auto",
 };
 
 export const defaultWebdavSyncConfig: WebdavSyncConfig = {
@@ -533,6 +537,8 @@ export const useConfigStore = create<ConfigStore>()(
                         proxyUrl: config.proxyUrl || DEFAULT_LOCAL_PROXY_URL,
                         nodeRegenerateBehavior: config.nodeRegenerateBehavior || "new-node",
                         autoFocusOnSelect: Boolean(config.autoFocusOnSelect),
+                        imageRatio: config.imageRatio || "auto",
+                        videoRatio: config.videoRatio || "auto",
                     },
                 };
             },
