@@ -225,29 +225,33 @@ export const CanvasNode = React.memo(function CanvasNode({
             const dy = (event.clientY - resizeRef.current.startY) / scale;
             const minWidth = 220;
             const minHeight = 160;
+            const minEdge = 120;
             const startRight = resizeRef.current.startLeft + resizeRef.current.startWidth;
             const startBottom = resizeRef.current.startTop + resizeRef.current.startHeight;
             const fromLeft = resizeRef.current.corner.includes("left");
             const fromTop = resizeRef.current.corner.includes("top");
-            const rawWidth = Math.max(minWidth, resizeRef.current.startWidth + (fromLeft ? -dx : dx));
-            const rawHeight = Math.max(minHeight, resizeRef.current.startHeight + (fromTop ? -dy : dy));
+            const rawWidth = resizeRef.current.startWidth + (fromLeft ? -dx : dx);
+            const rawHeight = resizeRef.current.startHeight + (fromTop ? -dy : dy);
             let width = rawWidth;
             let height = rawHeight;
             if (resizeRef.current.keepRatio) {
                 const ratio = resizeRef.current.ratio;
                 if (Math.abs(dx) >= Math.abs(dy)) {
+                    width = Math.max(1, rawWidth);
                     height = width / ratio;
                 } else {
+                    height = Math.max(1, rawHeight);
                     width = height * ratio;
                 }
-                if (height < minHeight) {
-                    height = minHeight;
-                    width = height * ratio;
+                const edge = Math.min(width, height);
+                if (edge < minEdge) {
+                    const factor = minEdge / edge;
+                    width *= factor;
+                    height *= factor;
                 }
-                if (width < minWidth) {
-                    width = minWidth;
-                    height = width / ratio;
-                }
+            } else {
+                width = Math.max(minWidth, rawWidth);
+                height = Math.max(minHeight, rawHeight);
             }
 
             onResize(data.id, width, height, {

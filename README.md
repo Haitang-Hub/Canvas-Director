@@ -228,10 +228,10 @@ Docker 静态资源路径为待验证项，生产环境完整部署建议自行�
 
 ## 致谢
 
-Canvas Director 建立在两个开源项目的工作之上：
+Canvas Director 构建于两项开源项目的成果之上：
 
-- [Infinite Canvas](https://github.com/basketikun/infinite-canvas) — 无限画布、AI 生成节点、Agent 体系与插件机制的基础
-- [3D Director Desk](https://github.com/xiaozangao/3d-director-desk) — 浏览器端 3D 运镜、双时间轴、骨骼追踪与 postMessage 嵌入协议的验证
+- [Infinite Canvas](https://github.com/basketikun/infinite-canvas)，作为无限画布、AI 生成节点、智能代理（Agent）体系与插件机制的底层基座；
+- [3D Director Desk](https://github.com/xiaozangao/3d-director-desk)，用于验证浏览器端三维运镜、双时间轴、骨骼追踪与 postMessage 跨框架嵌入协议。
 
 ## 许可证
 
