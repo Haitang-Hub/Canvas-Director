@@ -122,6 +122,7 @@ function unline(str) {
  * 带命名空间前缀的普通 function 工具（mcp__server__tool）。
  */
 let flattenedNamespaces = [];
+let flattenedInnerNames = new Map();
 
 function stripNamespaceTools(bodyStr) {
     if (process.env.CANVAS_PROXY_KEEP_NAMESPACE === "1") return bodyStr;
@@ -129,6 +130,7 @@ function stripNamespaceTools(bodyStr) {
         const obj = JSON.parse(bodyStr);
         if (Array.isArray(obj.tools)) {
             flattenedNamespaces = [];
+            flattenedInnerNames = new Map();
             logFile(`    [proxy] tools: ${obj.tools.map((t) => `${t?.type || "?"}:${t?.name || "?"}${t?.type === "namespace" ? `(${(t.tools || []).length})` : ""}`).join(", ")}`);
             const flattened = [];
             let namespaceCount = 0;
@@ -142,6 +144,7 @@ function stripNamespaceTools(bodyStr) {
                 if (tool.name) flattenedNamespaces.push(tool.name);
                 for (const inner of tool.tools || []) {
                     if (!inner || inner.type !== "function" || !inner.name) continue;
+                    if (tool.name && !flattenedInnerNames.has(inner.name)) flattenedInnerNames.set(inner.name, tool.name);
                     flattened.push({
                         type: "function",
                         name: tool.name ? `${tool.name}__${inner.name}` : inner.name,
@@ -169,8 +172,9 @@ function stripNamespaceTools(bodyStr) {
  * 把展平后的工具名（namespace__tool）还原成 Codex 期望的命名空间调用：
  * 清空 namespace 字段并把 name 改回 inner name。
  * Codex 的 MCP 工具注册表只认「namespace + name」形式，模型直接调用扁平名会报 unsupported call。
+ * 模型有时会丢掉前缀直接调裸名（尤其续跑旧会话时），裸名同样映射回所属 namespace。
  */
-function rewriteNamespacedCalls(text, namespaces) {
+function rewriteNamespacedCalls(text, namespaces, innerNames) {
     if (!namespaces || namespaces.length === 0) return text;
     const rewriteItem = (item) => {
         if (!item || typeof item !== "object" || item.type !== "function_call" || typeof item.name !== "string") return false;
@@ -181,6 +185,12 @@ function rewriteNamespacedCalls(text, namespaces) {
                 item.name = item.name.slice(prefix.length);
                 return true;
             }
+        }
+        const bareOwner = innerNames?.get(item.name);
+        if (bareOwner) {
+            item.namespace = bareOwner;
+            logFile(`    [proxy] rewrote bare tool call -> namespace=${bareOwner} name=${item.name}`);
+            return true;
         }
         return false;
     };
@@ -328,6 +338,7 @@ export function createProxyServer() {
                 const reqBodyStr = reqBodyBuf.toString("utf8");
                 const stripped = stripNamespaceTools(reqBodyStr);
                 const toolNamespaces = flattenedNamespaces.slice();
+                const toolInnerNames = new Map(flattenedInnerNames);
                 const upstreamUrl = `${CODEX_UPSTREAM_BASE}/responses`;
                 const contentLength = Buffer.byteLength(stripped);
                 const headers = requestHeaders(req);
@@ -381,13 +392,13 @@ export function createProxyServer() {
                                     if (lastNewline >= 0) {
                                         const complete = lineCarry.slice(0, lastNewline + 1);
                                         lineCarry = lineCarry.slice(lastNewline + 1);
-                                        res.write(rewriteNamespacedCalls(complete, toolNamespaces));
+                                        res.write(rewriteNamespacedCalls(complete, toolNamespaces, toolInnerNames));
                                     }
                                 }
                                 const tailText = decoder.decode();
                                 if (tailText) lineCarry += tailText;
                                 if (lineCarry) {
-                                    res.write(rewriteNamespacedCalls(lineCarry, toolNamespaces));
+                                    res.write(rewriteNamespacedCalls(lineCarry, toolNamespaces, toolInnerNames));
                                     lineCarry = "";
                                 }
                                 if (!hasCompletion) {
