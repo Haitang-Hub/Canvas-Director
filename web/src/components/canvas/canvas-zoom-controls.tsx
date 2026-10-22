@@ -42,8 +42,8 @@ export function CanvasZoomControls({ scale, onScaleChange, onReset, isMiniMapOpe
                 <Tooltip title={t("canvas.zoom")}>
                     <input
                         type="range"
-                        min="10"
-                    max="200"
+                        min="5"
+                    max="500"
                         step="1"
                         value={Math.round(scale * 100)}
                         className="w-24"
