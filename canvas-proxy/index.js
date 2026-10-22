@@ -115,19 +115,47 @@ function unline(str) {
 }
 
 /**
- * 剥离 tools 数组中 type === "namespace" 的条目。
- * Codex CLI 将内置工具（exec/wait 等）和 MCP 工具包裹在 namespace 容器中，
+ * 展平 tools 数组中 type === "namespace" 的条目。
+ * Codex CLI 将 MCP 工具包裹在 namespace 容器中（如 mcp__infinite_canvas），
  * 但 Agnes API 只接受 function / web_search_preview / code_interpreter / mcp 类型。
+ * 直接丢弃会令模型看不到任何画布工具，因此把容器内的 function 工具展开为
+ * 带命名空间前缀的普通 function 工具（mcp__server__tool）。
  */
+let flattenedNamespaces = [];
+
 function stripNamespaceTools(bodyStr) {
+    if (process.env.CANVAS_PROXY_KEEP_NAMESPACE === "1") return bodyStr;
     try {
         const obj = JSON.parse(bodyStr);
         if (Array.isArray(obj.tools)) {
-            const before = obj.tools.length;
-            obj.tools = obj.tools.filter((t) => t && t.type !== "namespace");
-            if (obj.tools.length !== before) {
-                logFile(`    [proxy] stripped ${before - obj.tools.length} namespace tool(s)`);
-                console.log(`[${new Date().toLocaleTimeString()}] [proxy] stripped ${before - obj.tools.length} namespace tool(s)`);
+            flattenedNamespaces = [];
+            logFile(`    [proxy] tools: ${obj.tools.map((t) => `${t?.type || "?"}:${t?.name || "?"}${t?.type === "namespace" ? `(${(t.tools || []).length})` : ""}`).join(", ")}`);
+            const flattened = [];
+            let namespaceCount = 0;
+            let expandedCount = 0;
+            for (const tool of obj.tools) {
+                if (!tool || tool.type !== "namespace") {
+                    flattened.push(tool);
+                    continue;
+                }
+                namespaceCount++;
+                if (tool.name) flattenedNamespaces.push(tool.name);
+                for (const inner of tool.tools || []) {
+                    if (!inner || inner.type !== "function" || !inner.name) continue;
+                    flattened.push({
+                        type: "function",
+                        name: tool.name ? `${tool.name}__${inner.name}` : inner.name,
+                        description: inner.description ?? "",
+                        parameters: inner.parameters ?? { type: "object", properties: {} },
+                        ...(inner.strict != null ? { strict: inner.strict } : {}),
+                    });
+                    expandedCount++;
+                }
+            }
+            obj.tools = flattened;
+            if (namespaceCount) {
+                logFile(`    [proxy] expanded ${namespaceCount} namespace tool(s) into ${expandedCount} function tool(s)`);
+                console.log(`[${new Date().toLocaleTimeString()}] [proxy] expanded ${namespaceCount} namespace tool(s) into ${expandedCount} function tool(s)`);
             }
         }
         return JSON.stringify(obj);
@@ -135,6 +163,50 @@ function stripNamespaceTools(bodyStr) {
         // Not JSON — return as-is
         return bodyStr;
     }
+}
+
+/**
+ * 把展平后的工具名（namespace__tool）还原成 Codex 期望的命名空间调用：
+ * 清空 namespace 字段并把 name 改回 inner name。
+ * Codex 的 MCP 工具注册表只认「namespace + name」形式，模型直接调用扁平名会报 unsupported call。
+ */
+function rewriteNamespacedCalls(text, namespaces) {
+    if (!namespaces || namespaces.length === 0) return text;
+    const rewriteItem = (item) => {
+        if (!item || typeof item !== "object" || item.type !== "function_call" || typeof item.name !== "string") return false;
+        for (const ns of namespaces) {
+            const prefix = `${ns}__`;
+            if (item.name.startsWith(prefix) && item.name.length > prefix.length) {
+                item.namespace = ns;
+                item.name = item.name.slice(prefix.length);
+                return true;
+            }
+        }
+        return false;
+    };
+    const rewriteEvent = (evt) => {
+        let changed = false;
+        if (rewriteItem(evt.item)) changed = true;
+        const lists = [evt.output, evt.response?.output];
+        for (const list of lists) {
+            if (Array.isArray(list)) for (const item of list) if (rewriteItem(item)) changed = true;
+        }
+        return changed;
+    };
+    return text
+        .split("\n")
+        .map((line) => {
+            const match = /^data:\s*(\{.*\})\s*$/.exec(line);
+            if (!match) return line;
+            let evt;
+            try {
+                evt = JSON.parse(match[1]);
+            } catch {
+                return line;
+            }
+            return rewriteEvent(evt) ? `data: ${JSON.stringify(evt)}` : line;
+        })
+        .join("\n");
 }
 
 /** 取 JSON 前 200 字符，并将换行转为 \n，确保单行输出。 */
@@ -255,6 +327,7 @@ export function createProxyServer() {
                 const reqBodyBuf = await readBody(req);
                 const reqBodyStr = reqBodyBuf.toString("utf8");
                 const stripped = stripNamespaceTools(reqBodyStr);
+                const toolNamespaces = flattenedNamespaces.slice();
                 const upstreamUrl = `${CODEX_UPSTREAM_BASE}/responses`;
                 const contentLength = Buffer.byteLength(stripped);
                 const headers = requestHeaders(req);
@@ -288,28 +361,40 @@ export function createProxyServer() {
                         const chunks = [];
                         let hasCompletion = false;
                         let eventCount = 0;
+                        let lineCarry = "";
+                        const decoder = new TextDecoder("utf-8");
                         ;(async () => {
                             try {
                                 while (true) {
                                     const { done, value } = await reader.read();
                                     if (done) break;
                                     chunks.push(value);
-                                    res.write(value);
                                     eventCount++;
+                                    const text = decoder.decode(value, { stream: true });
                                     // 检测是否收到 response.completed 事件（SSE 事件文本中包含该字段）
-                                    try {
-                                        const text = value.toString("utf8");
-                                        if (text.includes('"type":"response.completed"') || text.includes('"event":"response.completed"')) {
-                                            hasCompletion = true;
-                                        }
-                                    } catch {}
+                                    if (text.includes('"type":"response.completed"') || text.includes('"event":"response.completed"')) {
+                                        hasCompletion = true;
+                                    }
+                                    // 按行缓冲，把展平工具名的 function_call 还原为 Codex 需要的 namespace 形式后再转发
+                                    lineCarry += text;
+                                    const lastNewline = lineCarry.lastIndexOf("\n");
+                                    if (lastNewline >= 0) {
+                                        const complete = lineCarry.slice(0, lastNewline + 1);
+                                        lineCarry = lineCarry.slice(lastNewline + 1);
+                                        res.write(rewriteNamespacedCalls(complete, toolNamespaces));
+                                    }
+                                }
+                                const tailText = decoder.decode();
+                                if (tailText) lineCarry += tailText;
+                                if (lineCarry) {
+                                    res.write(rewriteNamespacedCalls(lineCarry, toolNamespaces));
+                                    lineCarry = "";
                                 }
                                 if (!hasCompletion) {
                                     // 流在 response.completed 之前关闭，注入合成完成事件避免 Codex app-server 报 stream disconnected
                                     const lastChunk = chunks.length > 0 ? chunks[chunks.length - 1].toString("utf8").slice(-500) : "(no chunks)";
                                     console.error(`[${new Date().toLocaleTimeString()}] <<< stream ended without response.completed (events=${eventCount}, bytes=${chunks.reduce((a, c) => a + c.length, 0)})，注入合成错误完成事件`);
                                     logFile(`!!! stream incomplete: ${eventCount} events, ${chunks.reduce((a, c) => a + c.length, 0)}B, last_chunk_tail: ${jsonSlice(lastChunk)}`);
-                                    logFile(`>>> INJECTING synthetic response.completed (responseId=${responseId || "none"})`);
                                     // 尝试从首个事件中提取 response id
                                     const allText = chunks.map(c => c.toString("utf8")).join("");
                                     const errorMatches = allText.match(/"type":"error"/g);
@@ -323,8 +408,9 @@ export function createProxyServer() {
                                         const createdMatch = allText.match(/"type"\s*:\s*"response\.created"[^}]*"id"\s*:\s*"([^"]+)"/);
                                         if (createdMatch) responseId = createdMatch[1];
                                     } catch {}
+                                    logFile(`>>> INJECTING synthetic response.completed (responseId=${responseId || "none"})`);
                                     // 写入合成的 response.completed 事件（SSE data: 格式），让 Codex app-server 正常结束 turn
-                                    const syntheticDone = `data: {"type":"response.completed","response":{"id":"${responseId}","object":"response","model":"","status":"incomplete","incomplete_details":{"reason":"upstream_stream_ended_before_completion"},"usage":{"input_tokens":0,"output_tokens":0,"total_tokens":0}},"error":{"type":"api_error","message":"上游流在 response.completed 前意外断开，请检查模型服务状态"}}\n\n`;
+                                    const syntheticDone = `\ndata: {"type":"response.completed","response":{"id":"${responseId}","object":"response","model":"","status":"incomplete","incomplete_details":{"reason":"upstream_stream_ended_before_completion"},"usage":{"input_tokens":0,"output_tokens":0,"total_tokens":0}},"error":{"type":"api_error","message":"上游流在 response.completed 前意外断开，请检查模型服务状态"}}\n\n`;
                                     res.write(syntheticDone);
                                     console.error(`[${new Date().toLocaleTimeString()}] >>> injected synthetic response.completed (responseId=${responseId || "none"})`);
                                     logFile(`>>> INJECTED OK responseId=${responseId || "none"}`);
