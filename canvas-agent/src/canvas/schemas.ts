@@ -1,8 +1,13 @@
 import { z } from "zod";
 
+/** 模型经常把数字参数序列化成字符串（如 "100"），统一先强转再校验。 */
+const num = z.coerce.number();
+/** 布尔同理，接受 "true"/"false" 字符串。 */
+const bool = z.preprocess((value) => (value === "true" ? true : value === "false" ? false : value), z.boolean());
+
 const recordSchema = z.record(z.unknown());
-const positionSchema = z.object({ x: z.number(), y: z.number() });
-const viewportSchema = z.object({ x: z.number(), y: z.number(), k: z.number() });
+const positionSchema = z.object({ x: num, y: num });
+const viewportSchema = z.object({ x: num, y: num, k: num });
 const nodeTypeSchema = z.enum(["image", "text", "config", "video", "audio"]);
 const generationModeSchema = z.enum(["text", "image", "video", "audio"]);
 
@@ -46,10 +51,10 @@ export const toolNames = [
 export type ToolName = (typeof toolNames)[number];
 
 export const canvasOpSchema = z.discriminatedUnion("type", [
-    z.object({ type: z.literal("add_node"), nodeType: nodeTypeSchema.optional(), id: z.string().optional(), title: z.string().optional(), x: z.number().optional(), y: z.number().optional(), width: z.number().optional(), height: z.number().optional(), position: positionSchema.optional(), metadata: recordSchema.optional() }).passthrough(),
+    z.object({ type: z.literal("add_node"), nodeType: nodeTypeSchema.optional(), id: z.string().optional(), title: z.string().optional(), x: num.optional(), y: num.optional(), width: num.optional(), height: num.optional(), position: positionSchema.optional(), metadata: recordSchema.optional() }).passthrough(),
     z.object({ type: z.literal("update_node"), id: z.string(), patch: recordSchema.optional(), metadata: recordSchema.optional() }).passthrough(),
     z.object({ type: z.literal("delete_node"), id: z.string().optional(), ids: z.array(z.string()).optional() }).passthrough(),
-    z.object({ type: z.literal("delete_connections"), id: z.string().optional(), ids: z.array(z.string()).optional(), all: z.boolean().optional() }).passthrough(),
+    z.object({ type: z.literal("delete_connections"), id: z.string().optional(), ids: z.array(z.string()).optional(), all: bool.optional() }).passthrough(),
     z.object({ type: z.literal("connect_nodes"), id: z.string().optional(), fromNodeId: z.string(), toNodeId: z.string() }).passthrough(),
     z.object({ type: z.literal("set_viewport"), viewport: viewportSchema }).passthrough(),
     z.object({ type: z.literal("select_nodes"), ids: z.array(z.string()) }).passthrough(),
@@ -59,17 +64,17 @@ export const canvasOpSchema = z.discriminatedUnion("type", [
 const textNodeSchema = z.object({
     text: z.string(),
     title: z.string().optional(),
-    x: z.number().optional(),
-    y: z.number().optional(),
-    width: z.number().optional(),
-    height: z.number().optional(),
+    x: num.optional(),
+    y: num.optional(),
+    width: num.optional(),
+    height: num.optional(),
 });
 
 const generationOptionsSchema = z.object({
     model: z.string().optional(),
     size: z.string().optional(),
     quality: z.string().optional(),
-    count: z.number().optional(),
+    count: num.optional(),
     seconds: z.string().optional(),
     vquality: z.string().optional(),
     generateAudio: z.string().optional(),
@@ -84,45 +89,45 @@ const generationOptionsSchema = z.object({
 const generationFlowSchema = z.object({
     prompt: z.string(),
     title: z.string().optional(),
-    x: z.number().optional(),
-    y: z.number().optional(),
+    x: num.optional(),
+    y: num.optional(),
     referenceNodeIds: z.array(z.string()).optional(),
 });
 
 export const toolInputSchemas = {
     site_navigate: z.object({ path: z.string() }),
-    canvas_list_projects: z.object({ keyword: z.string().optional(), page: z.number().optional(), pageSize: z.number().optional() }),
+    canvas_list_projects: z.object({ keyword: z.string().optional(), page: num.optional(), pageSize: num.optional() }),
     canvas_get_state: z.object({}).passthrough(),
     canvas_get_selection: z.object({}).passthrough(),
     canvas_export_snapshot: z.object({}).passthrough(),
     canvas_apply_ops: z.object({ ops: z.array(canvasOpSchema) }),
-    canvas_create_node: z.object({ nodeType: nodeTypeSchema, title: z.string().optional(), x: z.number().optional(), y: z.number().optional(), width: z.number().optional(), height: z.number().optional(), metadata: recordSchema.optional() }),
-    canvas_create_attachment_nodes: z.object({ attachmentIds: z.array(z.string()).min(1), x: z.number().optional(), y: z.number().optional(), gap: z.number().optional(), direction: z.enum(["row", "column"]).optional() }),
-    canvas_create_text_node: z.object({ text: z.string().optional(), x: z.number().optional(), y: z.number().optional(), title: z.string().optional(), width: z.number().optional(), height: z.number().optional() }),
-    canvas_create_text_nodes: z.object({ items: z.array(textNodeSchema).min(1), x: z.number().optional(), y: z.number().optional(), gap: z.number().optional(), direction: z.enum(["row", "column"]).optional() }),
-    canvas_create_config_node: z.object({ prompt: z.string().optional(), mode: generationModeSchema.optional(), title: z.string().optional(), x: z.number().optional(), y: z.number().optional(), width: z.number().optional(), height: z.number().optional(), autoRun: z.boolean().optional() }).merge(generationOptionsSchema),
-    canvas_create_image_prompt_flow: z.object({ prompt: z.string(), x: z.number().optional(), y: z.number().optional(), autoRun: z.boolean().optional() }).merge(generationOptionsSchema),
-    canvas_create_generation_flow: generationFlowSchema.extend({ mode: generationModeSchema.optional(), autoRun: z.boolean().optional() }).merge(generationOptionsSchema),
+    canvas_create_node: z.object({ nodeType: nodeTypeSchema, title: z.string().optional(), x: num.optional(), y: num.optional(), width: num.optional(), height: num.optional(), metadata: recordSchema.optional() }),
+    canvas_create_attachment_nodes: z.object({ attachmentIds: z.array(z.string()).min(1), x: num.optional(), y: num.optional(), gap: num.optional(), direction: z.enum(["row", "column"]).optional() }),
+    canvas_create_text_node: z.object({ text: z.string().optional(), x: num.optional(), y: num.optional(), title: z.string().optional(), width: num.optional(), height: num.optional() }),
+    canvas_create_text_nodes: z.object({ items: z.array(textNodeSchema).min(1), x: num.optional(), y: num.optional(), gap: num.optional(), direction: z.enum(["row", "column"]).optional() }),
+    canvas_create_config_node: z.object({ prompt: z.string().optional(), mode: generationModeSchema.optional(), title: z.string().optional(), x: num.optional(), y: num.optional(), width: num.optional(), height: num.optional(), autoRun: bool.optional() }).merge(generationOptionsSchema),
+    canvas_create_image_prompt_flow: z.object({ prompt: z.string(), x: num.optional(), y: num.optional(), autoRun: bool.optional() }).merge(generationOptionsSchema),
+    canvas_create_generation_flow: generationFlowSchema.extend({ mode: generationModeSchema.optional(), autoRun: bool.optional() }).merge(generationOptionsSchema),
     canvas_generate_text: generationFlowSchema.merge(generationOptionsSchema),
     canvas_generate_image: generationFlowSchema.merge(generationOptionsSchema),
     canvas_generate_video: generationFlowSchema.merge(generationOptionsSchema),
     canvas_generate_audio: generationFlowSchema.merge(generationOptionsSchema),
     canvas_update_node: z.object({ id: z.string(), patch: recordSchema.optional(), metadata: recordSchema.optional() }),
     canvas_update_node_text: z.object({ id: z.string(), text: z.string(), title: z.string().optional() }),
-    canvas_move_nodes: z.object({ items: z.array(z.object({ id: z.string(), x: z.number().optional(), y: z.number().optional(), dx: z.number().optional(), dy: z.number().optional() })).min(1) }),
-    canvas_resize_node: z.object({ id: z.string(), width: z.number(), height: z.number(), freeResize: z.boolean().optional() }),
+    canvas_move_nodes: z.object({ items: z.array(z.object({ id: z.string(), x: num.optional(), y: num.optional(), dx: num.optional(), dy: num.optional() })).min(1) }),
+    canvas_resize_node: z.object({ id: z.string(), width: num, height: num, freeResize: bool.optional() }),
     canvas_delete_nodes: z.object({ ids: z.array(z.string()).min(1) }),
     canvas_connect_nodes: z.object({ connections: z.array(z.object({ fromNodeId: z.string(), toNodeId: z.string() })).min(1) }),
     canvas_select_nodes: z.object({ ids: z.array(z.string()) }),
     canvas_set_viewport: z.object({ viewport: viewportSchema }),
     canvas_run_generation: z.object({ nodeId: z.string(), mode: generationModeSchema.optional(), prompt: z.string().optional() }),
-    generation_get_status: z.object({ scope: z.enum(["all", "canvas", "image", "video"]).optional(), taskId: z.string().optional(), nodeIds: z.array(z.string()).optional(), limit: z.number().optional() }),
+    generation_get_status: z.object({ scope: z.enum(["all", "canvas", "image", "video"]).optional(), taskId: z.string().optional(), nodeIds: z.array(z.string()).optional(), limit: num.optional() }),
     workbench_image_get_config: z.object({}).passthrough(),
-    workbench_image_generate: z.object({ prompt: z.string(), model: z.string().optional(), quality: z.string().optional(), size: z.string().optional(), count: z.number().optional(), run: z.boolean().optional() }),
+    workbench_image_generate: z.object({ prompt: z.string(), model: z.string().optional(), quality: z.string().optional(), size: z.string().optional(), count: num.optional(), run: bool.optional() }),
     workbench_video_get_config: z.object({}).passthrough(),
-    workbench_video_generate: z.object({ prompt: z.string(), model: z.string().optional(), size: z.string().optional(), seconds: z.string().optional(), resolution: z.string().optional(), generateAudio: z.boolean().optional(), watermark: z.boolean().optional(), mode: z.enum(["frames", "reference"]).optional(), run: z.boolean().optional() }),
-    prompts_search: z.object({ keyword: z.string().optional(), category: z.string().optional(), tags: z.array(z.string()).optional(), page: z.number().optional(), pageSize: z.number().optional() }),
-    assets_list: z.object({ kind: z.enum(["all", "text", "image", "video"]).optional(), keyword: z.string().optional(), page: z.number().optional(), pageSize: z.number().optional() }),
+    workbench_video_generate: z.object({ prompt: z.string(), model: z.string().optional(), size: z.string().optional(), seconds: z.string().optional(), resolution: z.string().optional(), generateAudio: bool.optional(), watermark: bool.optional(), mode: z.enum(["frames", "reference"]).optional(), run: bool.optional() }),
+    prompts_search: z.object({ keyword: z.string().optional(), category: z.string().optional(), tags: z.array(z.string()).optional(), page: num.optional(), pageSize: num.optional() }),
+    assets_list: z.object({ kind: z.enum(["all", "text", "image", "video"]).optional(), keyword: z.string().optional(), page: num.optional(), pageSize: num.optional() }),
     assets_add: z.object({ kind: z.enum(["text", "image"]), title: z.string(), content: z.string().optional(), imageUrl: z.string().optional(), tags: z.array(z.string()).optional(), source: z.string().optional(), note: z.string().optional() }),
 } satisfies Record<ToolName, z.AnyZodObject>;
 
