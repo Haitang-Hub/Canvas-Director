@@ -219,6 +219,307 @@ function rewriteNamespacedCalls(text, namespaces, innerNames) {
         .join("\n");
 }
 
+/**
+ * Agnes 的 /v1/responses 处理不了 input_image content part（内部转换会抛出
+ * 几十条 ChatCompletionRequest 校验错误），但 /v1/chat/completions 支持图片。
+ * 因此含图片的 Responses 请求改写成 Chat Completions 请求发出，
+ * 再把流式响应转换成 Codex 期望的 Responses SSE 事件。
+ */
+
+/** 检测 Responses 请求 input 中是否含图片 part。 */
+function hasImageParts(body) {
+    let found = false;
+    const walk = (node) => {
+        if (found || !node || typeof node !== "object") return;
+        if (Array.isArray(node)) {
+            for (const child of node) walk(child);
+            return;
+        }
+        if (node.type === "input_image" || node.type === "image_url" || node.type === "image") {
+            const raw = node.image_url ?? node.url;
+            const url = typeof raw === "string" ? raw : raw?.url;
+            if (url) {
+                found = true;
+                return;
+            }
+        }
+        for (const value of Object.values(node)) walk(value);
+    };
+    walk(body?.input);
+    return found;
+}
+
+/** 把 Responses content 转成 Chat Completions content；纯文本折叠成字符串。 */
+function toChatContent(content) {
+    if (typeof content === "string") return content;
+    if (!Array.isArray(content)) return "";
+    const parts = [];
+    let hasImage = false;
+    for (const part of content) {
+        if (!part || typeof part !== "object") continue;
+        if (part.type === "input_text" || part.type === "text" || part.type === "output_text") {
+            parts.push({ type: "text", text: String(part.text ?? "") });
+        } else if (part.type === "input_image" || part.type === "image_url" || part.type === "image") {
+            const raw = part.image_url ?? part.url;
+            const url = typeof raw === "string" ? raw : raw?.url;
+            if (url) {
+                parts.push({ type: "image_url", image_url: { url } });
+                hasImage = true;
+            }
+        }
+    }
+    return hasImage ? parts : parts.map((part) => part.text).join("");
+}
+
+/** 把 Responses 请求体转换成 Chat Completions 请求体。 */
+function toChatRequest(body) {
+    const chat = { model: body.model, stream: true };
+    if (body.temperature != null) chat.temperature = body.temperature;
+    if (body.top_p != null) chat.top_p = body.top_p;
+    if (body.max_output_tokens != null) chat.max_tokens = body.max_output_tokens;
+    if (body.reasoning?.effort) chat.reasoning_effort = body.reasoning.effort;
+
+    if (Array.isArray(body.tools)) {
+        const tools = body.tools
+            .filter((tool) => tool && tool.type === "function" && tool.name)
+            .map((tool) => ({
+                type: "function",
+                function: {
+                    name: tool.name,
+                    description: tool.description || "",
+                    parameters: tool.parameters || { type: "object", properties: {} },
+                    ...(tool.strict != null ? { strict: tool.strict } : {}),
+                },
+            }));
+        if (tools.length) chat.tools = tools;
+    }
+    if (chat.tools && body.tool_choice) {
+        if (typeof body.tool_choice === "string") chat.tool_choice = body.tool_choice;
+        else if (body.tool_choice.type === "function" && body.tool_choice.name) {
+            chat.tool_choice = { type: "function", function: { name: body.tool_choice.name } };
+        }
+    }
+
+    const messages = [];
+    if (body.instructions) messages.push({ role: "system", content: body.instructions });
+    for (const item of Array.isArray(body.input) ? body.input : []) {
+        if (!item || typeof item !== "object") continue;
+        if (item.type === "function_call") {
+            const call = {
+                id: item.call_id || item.id || `call_${messages.length}`,
+                type: "function",
+                function: {
+                    name: item.name,
+                    arguments: typeof item.arguments === "string" ? item.arguments : JSON.stringify(item.arguments ?? {}),
+                },
+            };
+            const prev = messages[messages.length - 1];
+            if (prev && prev.role === "assistant") (prev.tool_calls = prev.tool_calls || []).push(call);
+            else messages.push({ role: "assistant", content: "", tool_calls: [call] });
+            continue;
+        }
+        if (item.type === "function_call_output") {
+            messages.push({
+                role: "tool",
+                tool_call_id: item.call_id,
+                content: typeof item.output === "string" ? item.output : JSON.stringify(item.output ?? ""),
+            });
+            continue;
+        }
+        if (item.type === "reasoning" || item.type === "item_reference" || !item.role) continue;
+        const content = toChatContent(item.content);
+        if (content === "" || (Array.isArray(content) && content.length === 0)) continue;
+        messages.push({ role: item.role === "developer" ? "system" : item.role, content });
+    }
+    chat.messages = messages;
+    return chat;
+}
+
+/** 把 Chat Completions 流式响应转换成 Responses SSE，并处理工具名还原。 */
+function createResponsesStreamWriter(res, model, namespaces, innerNames) {
+    const rid = () => `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 10)}`;
+    const responseId = `resp_${rid()}`;
+    const createdAt = Math.floor(Date.now() / 1000);
+    const items = new Map();
+    let nextIndex = 0;
+    let sequence = 0;
+    let reasoning = null;
+    let message = null;
+    const calls = new Map();
+    let usage = null;
+
+    const write = (type, payload) => {
+        res.write(`event: ${type}\ndata: ${JSON.stringify({ type, sequence_number: sequence++, model, ...payload })}\n\n`);
+    };
+
+    const normalizeName = (name) => {
+        for (const ns of namespaces || []) {
+            const prefix = `${ns}__`;
+            if (typeof name === "string" && name.startsWith(prefix) && name.length > prefix.length) {
+                return { name: name.slice(prefix.length), namespace: ns };
+            }
+        }
+        const owner = innerNames?.get(name);
+        return owner ? { name, namespace: owner } : { name };
+    };
+
+    const start = () => {
+        const base = { id: responseId, object: "response", created_at: createdAt, model, status: "in_progress", output: [] };
+        res.write(`event: response.created\ndata: ${JSON.stringify({ type: "response.created", response: base })}\n\n`);
+        res.write(`event: response.in_progress\ndata: ${JSON.stringify({ type: "response.in_progress", response: base })}\n\n`);
+    };
+
+    const closeReasoning = () => {
+        if (!reasoning) return;
+        write("response.reasoning_text.done", { content_index: 0, item_id: reasoning.id, output_index: reasoning.index, text: reasoning.text });
+        const item = { id: reasoning.id, summary: [], type: "reasoning", content: [{ text: reasoning.text, type: "reasoning_text" }], status: "completed" };
+        write("response.output_item.done", { output_index: reasoning.index, item });
+        items.set(reasoning.index, item);
+        reasoning = null;
+    };
+
+    const closeMessage = () => {
+        if (!message) return;
+        write("response.output_text.done", { item_id: message.id, output_index: message.index, content_index: 0, text: message.text, logprobs: [] });
+        const part = { type: "output_text", text: message.text, annotations: [] };
+        write("response.content_part.done", { item_id: message.id, output_index: message.index, content_index: 0, part });
+        const item = { id: message.id, content: [part], role: "assistant", status: "completed", type: "message" };
+        write("response.output_item.done", { output_index: message.index, item });
+        items.set(message.index, item);
+        message = null;
+    };
+
+    const openCall = (state) => {
+        if (state.opened) return;
+        state.opened = true;
+        write("response.output_item.added", {
+            output_index: state.index,
+            item: {
+                arguments: "",
+                call_id: state.callId,
+                name: state.name,
+                type: "function_call",
+                id: state.id,
+                status: "in_progress",
+                ...(state.namespace ? { namespace: state.namespace } : {}),
+            },
+        });
+    };
+
+    const closeCalls = () => {
+        for (const state of [...calls.values()].sort((a, b) => a.index - b.index)) {
+            openCall(state);
+            write("response.function_call_arguments.done", { item_id: state.id, output_index: state.index, arguments: state.args, name: state.name });
+            const item = {
+                arguments: state.args,
+                call_id: state.callId,
+                name: state.name,
+                type: "function_call",
+                id: state.id,
+                status: "completed",
+                ...(state.namespace ? { namespace: state.namespace } : {}),
+            };
+            write("response.output_item.done", { output_index: state.index, item });
+            items.set(state.index, item);
+        }
+        calls.clear();
+    };
+
+    const push = (chunk) => {
+        if (chunk?.usage) usage = chunk.usage;
+        const delta = chunk?.choices?.[0]?.delta;
+        if (!delta) return;
+
+        if (typeof delta.reasoning_content === "string" && delta.reasoning_content) {
+            if (!reasoning) {
+                reasoning = { id: `rs_${rid()}`, index: nextIndex++, text: "" };
+                write("response.output_item.added", { output_index: reasoning.index, item: { id: reasoning.id, summary: [], type: "reasoning", content: [], status: "in_progress" } });
+            }
+            reasoning.text += delta.reasoning_content;
+            write("response.reasoning_text.delta", { content_index: 0, delta: delta.reasoning_content, item_id: reasoning.id, output_index: reasoning.index });
+        }
+
+        if (delta.content || delta.tool_calls) closeReasoning();
+
+        if (typeof delta.content === "string" && delta.content) {
+            if (!message) {
+                message = { id: `msg_${rid()}`, index: nextIndex++, text: "" };
+                write("response.output_item.added", { output_index: message.index, item: { id: message.id, content: [], role: "assistant", status: "in_progress", type: "message" } });
+                write("response.content_part.added", { item_id: message.id, output_index: message.index, content_index: 0, part: { annotations: [], text: "", type: "output_text" } });
+            }
+            message.text += delta.content;
+            write("response.output_text.delta", { item_id: message.id, output_index: message.index, content_index: 0, delta: delta.content, logprobs: [] });
+        }
+
+        if (Array.isArray(delta.tool_calls)) {
+            for (const toolCall of delta.tool_calls) {
+                const index = toolCall.index ?? 0;
+                let state = calls.get(index);
+                if (!state) {
+                    const normalized = normalizeName(toolCall.function?.name || "");
+                    state = {
+                        id: `fc_${rid()}`,
+                        callId: toolCall.id || `call_${rid()}`,
+                        index: nextIndex++,
+                        name: normalized.name || "",
+                        namespace: normalized.namespace,
+                        args: "",
+                        opened: false,
+                    };
+                    calls.set(index, state);
+                }
+                if (toolCall.function?.name && !state.name) state.name = toolCall.function.name;
+                if (toolCall.function?.arguments) {
+                    if (state.name) openCall(state);
+                    state.args += toolCall.function.arguments;
+                    if (state.opened) {
+                        write("response.function_call_arguments.delta", { item_id: state.id, output_index: state.index, delta: toolCall.function.arguments });
+                    }
+                }
+            }
+        }
+    };
+
+    const finish = (errorMessage) => {
+        closeReasoning();
+        closeMessage();
+        closeCalls();
+        const output = [...items.entries()].sort((a, b) => a[0] - b[0]).map(([, item]) => item);
+        const u = {
+            input_tokens: usage?.prompt_tokens ?? 0,
+            input_tokens_details: { cached_tokens: usage?.prompt_tokens_details?.cached_tokens ?? 0 },
+            output_tokens: usage?.completion_tokens ?? 0,
+            output_tokens_details: { reasoning_tokens: usage?.completion_tokens_details?.reasoning_tokens ?? 0 },
+            total_tokens: usage?.total_tokens ?? 0,
+        };
+        const response = {
+            id: responseId,
+            created_at: createdAt,
+            metadata: {},
+            model,
+            object: "response",
+            output,
+            parallel_tool_calls: true,
+            temperature: 1,
+            tool_choice: "auto",
+            tools: [],
+            top_p: 1,
+            max_output_tokens: null,
+            reasoning: { effort: null, summary: null },
+            status: errorMessage ? "incomplete" : "completed",
+            truncation: "disabled",
+            usage: u,
+            store: false,
+        };
+        const payload = { type: "response.completed", response };
+        if (errorMessage) payload.error = { type: "api_error", message: errorMessage };
+        res.write(`event: response.completed\ndata: ${JSON.stringify(payload)}\n\n`);
+        res.end();
+    };
+
+    return { start, push, finish };
+}
+
 /** 取 JSON 前 200 字符，并将换行转为 \n，确保单行输出。 */
 function jsonSlice(bodyStr, len = 200) {
     return unline(bodyStr.slice(0, len)) + (bodyStr.length > len ? "..." : "");
@@ -315,6 +616,80 @@ async function forward(req, res, target, startedAt, bodyOverride) {
     return forwardWithRetry(req, res, target, startedAt, bodyOverride);
 }
 
+/** 含图片的 Responses 请求：改写为 Chat Completions 请求并把流式结果转回 Responses SSE。 */
+async function forwardResponsesWithImages(req, res, body, namespaces, innerNames, startedAt) {
+    const chatBody = JSON.stringify(toChatRequest(body));
+    const target = `${CODEX_UPSTREAM_BASE}/chat/completions`;
+    const headers = requestHeaders(req);
+    headers["content-type"] = "application/json";
+    headers["content-length"] = String(Buffer.byteLength(chatBody));
+
+    logFile(`>>> CODEX(image) POST ${target} reqBody=${Buffer.byteLength(chatBody)}B`);
+    console.log(`[${new Date().toLocaleTimeString()}] >>> CODEX(image) POST ${target} reqBody=${Buffer.byteLength(chatBody)}B`);
+
+    const controller = new AbortController();
+    const proxyTimeout = setTimeout(() => controller.abort(), 900_000);
+    try {
+        const upstream = await fetch(target, { method: "POST", headers, body: chatBody, redirect: "follow", signal: controller.signal });
+        clearTimeout(proxyTimeout);
+
+        if (!upstream.ok || !upstream.body) {
+            const errBody = await collectBody(upstream.body);
+            logForward("POST", target, upstream.status, startedAt, Buffer.byteLength(chatBody));
+            logFile(`<<< ${upstream.status} chat body=${errBody.length}B ${jsonSlice(errBody.toString("utf8"), 400)}`);
+            res.writeHead(upstream.status, responseHeaders(upstream));
+            res.end(errBody);
+            return;
+        }
+
+        logForward("POST", target, "streaming", startedAt, Buffer.byteLength(chatBody));
+        logFile(`<<< STREAMING CODEX(image) ${upstream.status}`);
+        res.writeHead(200, {
+            ...CORS_HEADERS,
+            "content-type": "text/event-stream; charset=utf-8",
+            "cache-control": "no-cache",
+            "x-accel-buffering": "no",
+        });
+
+        const writer = createResponsesStreamWriter(res, body.model, namespaces, innerNames);
+        writer.start();
+
+        const reader = upstream.body.getReader();
+        const decoder = new TextDecoder("utf-8");
+        let buffer = "";
+        let sawDone = false;
+        while (!sawDone) {
+            const { done, value } = await reader.read();
+            if (done) break;
+            buffer += decoder.decode(value, { stream: true });
+            let newline;
+            while ((newline = buffer.indexOf("\n")) >= 0) {
+                const line = buffer.slice(0, newline).trim();
+                buffer = buffer.slice(newline + 1);
+                if (!line.startsWith("data:")) continue;
+                const payload = line.slice(5).trim();
+                if (!payload) continue;
+                if (payload === "[DONE]") {
+                    sawDone = true;
+                    break;
+                }
+                try {
+                    writer.push(JSON.parse(payload));
+                } catch {
+                    // 忽略无法解析的零星片段
+                }
+            }
+        }
+        writer.finish(sawDone ? undefined : "上游流在完成事件前断开");
+    } catch (error) {
+        clearTimeout(proxyTimeout);
+        const reason = error instanceof Error ? error.message : String(error);
+        logFile(`!!! CODEX(image) FAILED: ${reason}`);
+        if (!res.headersSent) sendJson(res, 502, { error: reason });
+        else if (!res.writableEnded) res.end();
+    }
+}
+
 export function createProxyServer() {
     // 禁用 Node.js HTTP 服务器的内部 headers 和 keep-alive 超时，避免 undici fetch
     // 的 300s 默认 headersTimeout 截断长时间图片生成请求。
@@ -329,6 +704,25 @@ export function createProxyServer() {
         const startedAt = Date.now();
         const method = req.method || "GET";
 
+        // ── Codex /chat/completions 特殊路由 ──────────────────────────────────
+        // wire_api="chat" 时 Codex 发送标准 Chat Completions 请求；
+        // 剥离 namespace 类型工具后转发到 Agnes API。
+        if (pathname === "/chat/completions" || pathname.startsWith("/chat/completions?")) {
+            try {
+                const reqBodyBuf = await readBody(req);
+                const stripped = stripNamespaceTools(reqBodyBuf.toString("utf8"));
+                const target = `${CODEX_UPSTREAM_BASE}/chat/completions`;
+                logFile(`>>> CODEX ${method} ${target} reqBody=${reqBodyBuf.length}B -> stripped body=${Buffer.byteLength(stripped)}B`);
+                console.log(`[${new Date().toLocaleTimeString()}] >>> CODEX ${method} ${target} reqBody=${reqBodyBuf.length}B stripped=${Buffer.byteLength(stripped)}B`);
+                await forward(req, res, target, startedAt, stripped);
+            } catch (err) {
+                const reason = err instanceof Error ? err.message : String(err);
+                logFile(`!!! CODEX chat readBody failed: ${reason}`);
+                if (!res.headersSent) sendJson(res, 502, { error: reason });
+            }
+            return;
+        }
+
         // ── Codex /responses 特殊路由 ─────────────────────────────────────────
         // Codex CLI 发送 POST /responses 到 proxy；我们剥离 namespace 类型工具后
         // 转发到真实的 Agnes API。
@@ -339,6 +733,17 @@ export function createProxyServer() {
                 const stripped = stripNamespaceTools(reqBodyStr);
                 const toolNamespaces = flattenedNamespaces.slice();
                 const toolInnerNames = new Map(flattenedInnerNames);
+
+                // Agnes 的 /responses 不支持图片，含图片的请求改走 chat/completions
+                let parsedBody = null;
+                try {
+                    parsedBody = JSON.parse(stripped);
+                } catch {}
+                if (parsedBody && hasImageParts(parsedBody)) {
+                    await forwardResponsesWithImages(req, res, parsedBody, toolNamespaces, toolInnerNames, startedAt);
+                    return;
+                }
+
                 const upstreamUrl = `${CODEX_UPSTREAM_BASE}/responses`;
                 const contentLength = Buffer.byteLength(stripped);
                 const headers = requestHeaders(req);
@@ -362,7 +767,8 @@ export function createProxyServer() {
                     });
                     clearTimeout(proxyTimeout);
                     const contentType = upstream.headers.get("content-type") || "";
-                    const isStreamResp = contentType.includes("text/event-stream") || contentType.includes("streaming") || req.headers["accept"]?.includes("text/event-stream");
+                    // 只有成功响应才走流式转发，错误响应（400/500）直接返回 JSON body
+                    const isStreamResp = upstream.ok && (contentType.includes("text/event-stream") || contentType.includes("streaming") || req.headers["accept"]?.includes("text/event-stream"));
 
                     if (isStreamResp && upstream.body) {
                         logForward(method, upstreamUrl, `streaming`, startedAt, Buffer.byteLength(stripped));

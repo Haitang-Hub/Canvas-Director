@@ -7,6 +7,7 @@
 + [修复] 「已有内容的节点再次生成时」设置真正生效：选择原地重新生成时覆盖当前节点内容，选择新建节点时在旁侧创建新节点并保留原节点。
 + [修复] 生成请求尺寸会按默认画面比例自动合成，生成结果和节点框尺寸跟随设置的比例，不再忽略比例只按自动尺寸出图。
 + [修复] 当上游 SSE 流在 `response.completed` 前意外断开时，注入合成的错误完成事件，避免 Codex app-server 报 "stream disconnected before completion"；更新代理为本地直接运行 `node canvas-proxy/index.js` 或重新发布到 npm。
++ [修复] 代理兼容 Responses 接口不接受图片 content part 的问题：含图片的 Agent 请求改走 Chat Completions 并把流式响应转回 Responses 事件，带产品图的对话不再报 400 校验错误。
 
 ## v0.20.0 - 2026-10-18
 
