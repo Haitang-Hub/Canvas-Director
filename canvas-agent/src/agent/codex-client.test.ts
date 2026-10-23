@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import { CodexAppClient } from "./codex-client.js";
-import { assertDraftHasNoSensitiveValues, canvasSkillSource } from "./codex.js";
+import { assertDraftHasNoSensitiveValues, canvasSkillSource, parseSkillDraftJson, readSkillDraft } from "./codex.js";
 
 type TestClient = {
     currentThreadId: string;
@@ -589,6 +589,52 @@ test("Skill 草稿允许普通动作名称，但拒绝任意本地绝对路径",
     assert.doesNotThrow(() => assertDraftHasNoSensitiveValues(draft, []));
     assert.throws(() => assertDraftHasNoSensitiveValues({ ...draft, instructions: "读取 /var/lib/private.png" }, []), /本地路径/);
     assert.throws(() => assertDraftHasNoSensitiveValues({ ...draft, instructions: "读取 file:///root/private.png" }, []), /本地路径/);
+});
+
+test("Skill 草稿解析兼容纯 JSON、代码块和前后缀说明", () => {
+    const draft = { name: "demo-skill", description: "演示", instructions: "返回确认" };
+
+    assert.deepEqual(parseSkillDraftJson(JSON.stringify(draft)), draft);
+    assert.deepEqual(parseSkillDraftJson(`\`\`\`json\n${JSON.stringify(draft)}\n\`\`\``), draft);
+    assert.deepEqual(parseSkillDraftJson(`已生成草稿：\n\`\`\`json\n${JSON.stringify(draft)}\n\`\`\`\n请确认。`), draft);
+});
+
+test("Skill 草稿解析忽略字符串内部的大括号", () => {
+    const draft = { name: "demo-skill", instructions: "输出 {name} 与 } 字符" };
+
+    assert.deepEqual(parseSkillDraftJson(`结果如下：${JSON.stringify(draft)} 以上。`), draft);
+});
+
+test("Skill 草稿解析在完全不是 JSON 时返回 undefined", () => {
+    assert.equal(parseSkillDraftJson("抱歉，我无法生成 Skill 草稿。"), undefined);
+    assert.equal(parseSkillDraftJson(""), undefined);
+});
+
+test("Skill 草稿会忽略不足 25 字符的可选短说明", () => {
+    const result = readSkillDraft(JSON.stringify({
+        name: "xiaomi-su7-promo-video",
+        description: "制作小米SU7汽车宣传片，包含分镜脚本、分镜图和视频三个阶段。",
+        instructions: "# 小米SU7宣传片流程\n\n1. 创建分镜脚本节点。\n2. 生成分镜图。\n3. 合成视频。",
+        displayName: "小米SU7宣传片制作",
+        shortDescription: "制作小米SU7汽车宣传视频",
+        defaultPrompt: "",
+    }));
+
+    assert.equal(result.value?.shortDescription, "");
+});
+
+test("Skill 草稿校验失败时返回字段级原因", () => {
+    const result = readSkillDraft(JSON.stringify({
+        name: "Xiaomi SU7",
+        description: "演示",
+        instructions: "步骤",
+        displayName: "演示",
+        shortDescription: "",
+        defaultPrompt: "",
+    }));
+
+    assert.equal(result.value, undefined);
+    assert.match(result.error || "", /name/);
 });
 
 test("turn/started 早于 turn/start 响应时保持完整事件归属", async () => {

@@ -45,6 +45,51 @@ const SKILL_DRAFT_OUTPUT_SCHEMA: JsonRecord = {
 
 export type AgentSkillDraft = z.infer<typeof skillDraftSchema>;
 
+/** 从模型输出中提取 JSON 对象，兼容 Markdown 代码块、BOM 和前后缀说明。 */
+export function parseSkillDraftJson(raw: string): unknown {
+    const text = raw.replace(/^\uFEFF/, "").trim();
+    if (!text) return undefined;
+    const candidates: string[] = [];
+    const fenced = text.match(/```(?:json)?\s*([\s\S]*?)```/i);
+    if (fenced?.[1]) candidates.push(fenced[1].trim());
+    candidates.push(text);
+    const extracted = extractJsonObject(text);
+    if (extracted) candidates.push(extracted);
+    for (const candidate of candidates) {
+        try {
+            return JSON.parse(candidate);
+        } catch {
+            // 尝试下一个候选片段
+        }
+    }
+    return undefined;
+}
+
+/** 找到第一个完整的顶层 JSON 对象，忽略字符串内部的括号。 */
+function extractJsonObject(text: string) {
+    const start = text.indexOf("{");
+    if (start < 0) return "";
+    let depth = 0;
+    let inString = false;
+    let escaped = false;
+    for (let index = start; index < text.length; index++) {
+        const char = text[index];
+        if (inString) {
+            if (escaped) escaped = false;
+            else if (char === "\\") escaped = true;
+            else if (char === "\"") inString = false;
+            continue;
+        }
+        if (char === "\"") inString = true;
+        else if (char === "{") depth++;
+        else if (char === "}") {
+            depth--;
+            if (depth === 0) return text.slice(start, index + 1);
+        }
+    }
+    return "";
+}
+
 export class CodexSkillLookupError extends Error {
     override name = "CodexSkillLookupError";
     constructor(message: string, readonly statusCode: 400 | 404 | 409) {
@@ -258,23 +303,74 @@ async function loadCodexThread(emit: AgentEmit, threadId: string, cwd: string | 
     return thread;
 }
 
+type SkillDraftReadResult = { value: AgentSkillDraft; error?: never } | { value?: never; error: string };
+
+/** 只保留草稿字段，并归一化可选字段，避免可选项阻断整份草稿。 */
+function normalizeSkillDraft(value: unknown) {
+    if (!value || typeof value !== "object" || Array.isArray(value)) return value;
+    const source = value as Record<string, unknown>;
+    const draft: Record<string, unknown> = {};
+    for (const key of ["name", "displayName", "description", "instructions", "shortDescription", "defaultPrompt"]) {
+        draft[key] = source[key];
+    }
+    for (const key of ["name", "displayName", "description", "instructions", "shortDescription", "defaultPrompt"]) {
+        if (typeof draft[key] === "string") draft[key] = (draft[key] as string).trim();
+    }
+    for (const key of ["displayName", "shortDescription", "defaultPrompt"]) {
+        if (typeof draft[key] !== "string") draft[key] = "";
+    }
+    draft.description = String(draft.description ?? "").replace(/[<>]/g, "");
+    draft.displayName = String(draft.displayName).slice(0, 64);
+    const shortDescription = String(draft.shortDescription);
+    if (shortDescription.length < 25 || shortDescription.length > 64) draft.shortDescription = "";
+    const name = String(draft.name ?? "");
+    if (draft.defaultPrompt && !mentionsSkill(String(draft.defaultPrompt), name)) draft.defaultPrompt = "";
+    return draft;
+}
+
+/** 汇总字段级校验信息，供重试提示和错误提示使用。 */
+function describeSkillDraftIssues(error: z.ZodError) {
+    return error.issues.slice(0, 3).map((issue) => `${issue.path.join(".") || "根对象"}：${issue.message}`).join("；");
+}
+
+/** 解析并校验模型返回的 Skill 草稿。 */
+export function readSkillDraft(raw: string): SkillDraftReadResult {
+    const value = parseSkillDraftJson(raw);
+    if (value === undefined) return { error: "不是有效 JSON" };
+    const parsed = skillDraftSchema.safeParse(normalizeSkillDraft(value));
+    if (!parsed.success) return { error: `格式不正确（${describeSkillDraftIssues(parsed.error)}）` };
+    return { value: parsed.data };
+}
+
+/** 首次解析失败时，让模型在同一线程内重新输出纯 JSON。 */
+function skillDraftRepairPrompt(reason: string) {
+    return [
+        "你上一条回复没有通过 Skill 草稿校验。",
+        `问题：${reason}。`,
+        "请重新生成同一个 Skill 草稿，只输出一个符合 outputSchema 的 JSON 对象。",
+        "不要使用 Markdown 代码块，不要输出解释、注释或任何前后缀。",
+    ].join("\n");
+}
+
 async function generateCodexSkillDraftNow(emit: AgentEmit, cwd: string, input: CodexSkillDraftInput) {
     const app = await getCodexApp(emit);
     let threadId = "";
     try {
         const thread = input.source === "conversation" ? await app.forkSkillDraftThread(input.threadId, cwd) : await app.startSkillDraftThread(cwd);
         threadId = String(field(thread, "id") || "");
-        const raw = await app.generateSkillDraft(threadId, skillDraftPrompt(input), SKILL_DRAFT_OUTPUT_SCHEMA, input.model, input.effort);
-        let value: unknown;
-        try {
-            value = JSON.parse(raw);
-        } catch {
-            throw new Error("Codex 返回的 Skill 草稿不是有效 JSON");
+        let raw = await app.generateSkillDraft(threadId, skillDraftPrompt(input), SKILL_DRAFT_OUTPUT_SCHEMA, input.model, input.effort);
+        let draft = readSkillDraft(raw);
+        if (!draft.value) {
+            logger.warn("Codex Skill draft output invalid, retrying", { threadId, reason: draft.error, excerpt: raw.slice(0, 300) });
+            raw = await app.generateSkillDraft(threadId, skillDraftRepairPrompt(draft.error), SKILL_DRAFT_OUTPUT_SCHEMA, input.model, input.effort);
+            draft = readSkillDraft(raw);
         }
-        const parsed = skillDraftSchema.safeParse(value);
-        if (!parsed.success) throw new Error("Codex 返回的 Skill 草稿格式不正确");
-        assertDraftHasNoSensitiveValues(parsed.data, input.source === "canvas" ? canvasPrivateValues(input.snapshot) : []);
-        return parsed.data;
+        if (!draft.value) {
+            logger.warn("Codex Skill draft output still invalid", { threadId, reason: draft.error, excerpt: raw.slice(0, 300) });
+            throw new Error(`Codex 返回的 Skill 草稿${draft.error}`);
+        }
+        assertDraftHasNoSensitiveValues(draft.value, input.source === "canvas" ? canvasPrivateValues(input.snapshot) : []);
+        return draft.value;
     } finally {
         if (threadId) await app.closeSkillDraftThread(threadId).catch((error) => logger.warn("Failed to release Skill draft thread", { threadId, error }));
     }
@@ -291,11 +387,11 @@ function skillDraftPrompt(input: CodexSkillDraftInput) {
         "- name 使用不超过 64 个字符的小写字母、数字和连字符，优先使用简短的动词短语。",
         "- description 同时说明能力和触发场景；所有何时使用的信息都写在这里。",
         "- instructions 只写另一个 Codex 真正需要的、可复用的命令式步骤、约束和输出要求，不写 YAML frontmatter。",
-        "- shortDescription 写 25–64 个字符的人类可读短说明；没有合适内容时返回空字符串。",
+        "- shortDescription 写 25–64 个字符的人类可读短说明（例如“根据参考图批量生成产品分镜图并合成宣传视频的完整工作流”），不足 25 个字符时返回空字符串。",
         "- defaultPrompt 必须包含与 name 完全一致的 $skill-name 调用标记；没有合适内容时返回空字符串。",
         "- displayName 使用简洁的人类可读名称。",
         "- 不得输出 Token、API Key、密码、凭证、本地路径、媒体 URL、敏感 URL、临时错误、调试日志或一次性结果。",
-        "只按 outputSchema 返回对象。",
+        "只输出一个符合 outputSchema 的 JSON 对象，不要使用 Markdown 代码块，也不要输出解释、注释或任何前后缀。",
     ].join("\n");
 }
 
