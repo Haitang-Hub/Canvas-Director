@@ -7,7 +7,10 @@
 + [修复] 「已有内容的节点再次生成时」设置真正生效：选择原地重新生成时覆盖当前节点内容，选择新建节点时在旁侧创建新节点并保留原节点。
 + [修复] 生成请求尺寸会按默认画面比例自动合成，生成结果和节点框尺寸跟随设置的比例，不再忽略比例只按自动尺寸出图。
 + [修复] 当上游 SSE 流在 `response.completed` 前意外断开时，注入合成的错误完成事件，避免 Codex app-server 报 "stream disconnected before completion"；更新代理为本地直接运行 `node canvas-proxy/index.js` 或重新发布到 npm。
-+ [修复] 代理兼容 Responses 接口不接受图片 content part 的问题：含图片的 Agent 请求改走 Chat Completions 并把流式响应转回 Responses 事件，带产品图的对话不再报 400 校验错误。
++ [修复] 代理部分服务商兼容 Responses 接口不接受图片 content part 的问题：含图片的 Agent 请求改走 Chat Completions 并把流式响应转回 Responses 事件，带产品图的对话不再报 400 校验错误。
++ [修复] Agent 移动或排列节点时，模型把 `items` 等数组参数写成 JSON 字符串会导致 MCP 校验失败；现已自动解析字符串形式的数组和对象参数，排列画布节点可正常执行。
++ [修复] 扩展视频调用脚本按新接口参数创建任务：mode（text/keyframe/reference）、字符串 seconds、由分辨率得出的 size（如 720P）和 aspect_ratio，修复部分模型报 400 的问题；已保存的旧版默认脚本会在加载时自动替换为新模板。
++ [调整] 移除按模型名称自动绑定厂商调用脚本的硬编码，新拉取的模型不再自动附带脚本，可在渠道编辑中手动选择「扩展图片/视频规范」模板。
 
 ## v0.20.0 - 2026-10-18
 

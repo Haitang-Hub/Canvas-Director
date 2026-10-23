@@ -3,7 +3,7 @@ import { ListPlus, Trash2 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 
-import { defaultBaseUrlForApiFormat, guessCapability, normalizeChannelModels, type ApiCallFormat, type ChannelModel, type ModelCapability, type ModelChannel, getDefaultImageScriptIndex, DEFAULT_AGNES_IMAGE_SCRIPT, DEFAULT_AGNES_VIDEO_SCRIPT, shouldApplyDefaultVideoScript } from "@/stores/use-config-store";
+import { defaultBaseUrlForApiFormat, guessCapability, normalizeChannelModels, type ApiCallFormat, type ChannelModel, type ModelCapability, type ModelChannel } from "@/stores/use-config-store";
 import { ModelScriptEditor } from "./model-script-editor";
 import { ModelSelectModal } from "./model-select-modal";
 
@@ -40,9 +40,7 @@ export function ChannelEditorDrawer({ open, channel, onSave, onClose }: { open: 
             const existing = map.get(name);
             if (existing) return existing;
             const capability = guessCapability(name);
-            const scriptIndex = capability === "image" ? getDefaultImageScriptIndex(name) : undefined;
-            const script = scriptIndex !== undefined ? DEFAULT_AGNES_IMAGE_SCRIPT : capability === "video" && shouldApplyDefaultVideoScript(name) ? DEFAULT_AGNES_VIDEO_SCRIPT : undefined;
-            return { name, capability, script };
+            return { name, capability };
         }));
     };
 

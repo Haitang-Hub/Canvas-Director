@@ -160,7 +160,7 @@ export function boolConfig(value: string, fallback: boolean) {
     return value ? value === "true" : fallback;
 }
 const AUDIO_KEYWORDS = ["audio", "tts", "speech", "voice", "music", "sound"];
-const IMAGE_KEYWORDS = ["seedream", "gpt-image", "image", "dall-e", "dalle", "imagen", "flux", "sdxl", "stable-diffusion", "midjourney", "agnes"];
+const IMAGE_KEYWORDS = ["seedream", "gpt-image", "image", "dall-e", "dalle", "imagen", "flux", "sdxl", "stable-diffusion", "midjourney"];
 
 /** Best-effort default capability for a freshly fetched model name; user can override in the channel editor. */
 export function guessCapability(name: string): ModelCapability {
@@ -171,31 +171,8 @@ export function guessCapability(name: string): ModelCapability {
     return "text";
 }
 
-/** 已知模型名称 → image 模板数组索引（用于自动绑定默认脚本）。 */
-const DEFAULT_MODEL_SCRIPTS: Record<string, number> = {
-    "agnes-image-2.5-flash": 2,
-};
-
-/** 已知模型名称模式 → 视频默认脚本（用于自动绑定）。 */
-const DEFAULT_VIDEO_SCRIPT_PATTERNS = ["agnes", "video"];
-
-/** 返回模型默认使用的 image 模板索引，无默认时返回 undefined。 */
-export function getDefaultImageScriptIndex(modelName: string): number | undefined {
-    const key = modelName.toLowerCase().trim();
-    for (const [pattern, index] of Object.entries(DEFAULT_MODEL_SCRIPTS)) {
-        if (key.includes(pattern)) return index;
-    }
-    return undefined;
-}
-
-/** 返回模型是否应自动绑定视频默认脚本。 */
-export function shouldApplyDefaultVideoScript(modelName: string): boolean {
-    const key = modelName.toLowerCase().trim();
-    return DEFAULT_VIDEO_SCRIPT_PATTERNS.some((pattern) => key.includes(pattern));
-}
-
 /** 图片默认调用脚本（模板索引 2）。 */
-export const DEFAULT_AGNES_IMAGE_SCRIPT = `/**
+export const DEFAULT_EXTENDED_IMAGE_SCRIPT = `/**
  * 图片生成模板：text-to-image 和 image-to-image。
  * Key differences from OpenAI:
  * - response_format must be inside extra_body, not at top level
@@ -273,23 +250,25 @@ return await generateImage({
 });`;
 
 /** 视频默认调用脚本（正确的 URL 路径：result.url，非 result.metadata?.url）。 */
-export const DEFAULT_AGNES_VIDEO_SCRIPT = `/**
- * 视频生成模板：text-to-video、image-to-video 和关键帧动画。
+export const DEFAULT_EXTENDED_VIDEO_SCRIPT = `/**
+ * 视频生成模板：文生视频、首尾帧控制和图片/音频参考生成。
  * Asynchronous API: create task → poll → retrieve result.
  * Key differences from OpenAI video:
  * - endpoint is POST /v1/videos (JSON body), not multipart
- * - poll endpoint is GET /agnesapi?video_id=... (not /v1/videos/{id})
- * - params use width/height/num_frames/frame_rate, not seconds/resolution
- * - result URL is at top-level url field
+ * - mode is "text" | "keyframe" | "reference" (no media → text; frames → keyframe; otherwise reference)
+ * - keyframe uses first_frame/last_frame data URLs; reference uses images[]/audios[] data URLs
+ * - size uses resolution like "720P"; output shape is chosen via aspect_ratio
+ * - poll endpoint is GET /agnesapi?video_id=...&model_name=... (not /v1/videos/{id})
+ * - result URL is at top-level url field once status becomes "completed"
  * @param {string} prompt
- * @param {string[]} images - reference image data URLs; first for img2vid, all for keyframes
- * @param {string[]} videos - reference video Files (unused by some providers, kept for compatibility)
- * @param {string[]} audios - reference audio Files (unused by some providers)
+ * @param {string[]} images - reference image data URLs; first/last for keyframe, all for reference
+ * @param {File[]} videos - reference video Files (unused by some providers, kept for compatibility)
+ * @param {File[]} audios - reference audio Files, sent as data URLs in reference mode
  * @param {object} params
  * @param {string} params.mode - "frames" (first/last image) | "reference" | undefined (text-only)
- * @param {string} params.size - e.g. "1280x720" or "auto"
- * @param {string} params.resolution - e.g. "720p" (mapped to standard sizes)
- * @param {number} params.seconds - target duration in seconds (maps to num_frames)
+ * @param {string} params.resolution - e.g. "720p" (sent as size "720P")
+ * @param {string} params.ratio - aspect ratio, e.g. "16:9"; "auto" is omitted
+ * @param {number} params.seconds - target duration in seconds, sent as string
  * @param {string} model
  * @param {string} baseUrl
  * @param {string} apiKey
@@ -302,49 +281,46 @@ async function generateVideo({
   images,
   videos,
   audios,
-  params: { mode, size, resolution, seconds },
+  params: { mode, resolution, ratio, seconds },
   model,
   baseUrl,
   apiKey,
   request,
   poll,
 }) {
-  const isFrames = mode === "frames";
-  const isKeyframes = images.length > 2;
+  async function toDataUrl(file) {
+    return await new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(String(reader.result || ""));
+      reader.onerror = () => reject(reader.error);
+      reader.readAsDataURL(file);
+    });
+  }
 
-  // Map seconds to num_frames (default 24 fps)
-  const fps = 24;
-  const targetFrames = Math.round((Number(seconds) || 5) * fps);
-  // Must follow 8n+1 rule and be <= 441
-  let numFrames = Math.min(441, targetFrames);
-  numFrames = Math.floor((numFrames - 1) / 8) * 8 + 1;
-
-  // Map size to width/height
-  let width = 1152, height = 768;
-  if (size && size !== "auto") {
-    const match = size.match(/(\\d+)x(\\d+)/i);
-    if (match) { width = Number(match[1]); height = Number(match[2]); }
+  const audioUrls = [];
+  for (const file of audios || []) {
+    audioUrls.push(await toDataUrl(file));
   }
 
   const body = {
     model: model,
     prompt: prompt,
-    width: width,
-    height: height,
-    num_frames: numFrames,
-    frame_rate: fps,
+    seconds: String(Number(seconds) || 5),
   };
+  const resolutionMatch = String(resolution || "").match(/^(\\d+)p$/i);
+  if (resolutionMatch) body.size = resolutionMatch[1].toUpperCase() + "P";
+  if (ratio && ratio !== "auto") body.aspect_ratio = ratio;
 
-  if (isKeyframes) {
-    body.extra_body = {
-      image: images.map((u) => u),
-      mode: "keyframes",
-    };
-  } else if (isFrames && images[0]) {
-    body.image = images[0];
-    if (images[1]) body.extra_body = { last_frame: images[1] };
-  } else if (!isFrames && images[0]) {
-    body.image = images[0];
+  if (images.length === 0 && audioUrls.length === 0) {
+    body.mode = "text";
+  } else if (mode === "frames") {
+    body.mode = "keyframe";
+    if (images[0]) body.first_frame = images[0];
+    if (images[1]) body.last_frame = images[1];
+  } else {
+    body.mode = "reference";
+    if (images.length) body.images = images;
+    if (audioUrls.length) body.audios = audioUrls;
   }
 
   // Step 1: create task
@@ -359,6 +335,7 @@ async function generateVideo({
   });
 
   const videoId = createRes.video_id || createRes.task_id || createRes.id;
+  if (!videoId) throw new Error("video task id missing in create response");
 
   // Step 2: poll for completion
   const result = await poll(
@@ -372,8 +349,12 @@ async function generateVideo({
       return r;
     },
     (r) => {
-      if (r.error || r.status === "failed") throw new Error(r.error?.message || "Video generation failed");
-      return r.completed_at ? r : null;
+      if (r.error || r.status === "failed" || r.status === "cancelled") throw new Error(r.error?.message || "Video generation failed");
+      if (r.status === "completed" || r.completed_at) {
+        if (!r.url) throw new Error("video url missing in task result");
+        return r;
+      }
+      return null;
     },
     { intervalMs: 8000, timeoutMs: 300000 },
   );
@@ -404,7 +385,11 @@ function migrateModelScripts(channels: ModelChannel[]): ModelChannel[] {
             if (script.includes("result.metadata?.url")) {
                 return { ...model, script: script.replace("result.metadata?.url", "result.url") };
             }
-            // Fix 2: 视频脚本轮询缺少 model_name 参数
+            // Fix 2: 旧版默认视频脚本（width/height/num_frames 参数）整体替换为新版 mode/size/aspect_ratio 脚本
+            if (script.includes("num_frames") && script.includes("frame_rate")) {
+                return { ...model, script: DEFAULT_EXTENDED_VIDEO_SCRIPT };
+            }
+            // Fix 3: 视频脚本轮询缺少 model_name 参数
             if (script.includes("/agnesapi") && script.includes("video_id") && !script.includes("model_name: model")) {
                 return { ...model, script: script.replace("params: { video_id: videoId }", "params: { video_id: videoId, model_name: model }") };
             }
@@ -696,7 +681,7 @@ export function resolveModelChannel(config: AiConfig, value: string) {
     const decoded = decodeChannelModel(value);
     const model = decoded?.model || value;
     const matched = decoded ? config.channels.find((channel) => channel.id === decoded.channelId) : config.channels.find((channel) => channel.models.some((item) => item.name === model));
-    return matched || config.channels[0] || createModelChannel({ id: "default", name: i18n.t("config.channels.defaultName"), baseUrl: config.baseUrl, apiKey: config.apiKey, apiFormat: config.apiFormat, models: config.models.map(modelOptionName).map((name) => { const capability = guessCapability(name); const scriptIndex = capability === "image" ? getDefaultImageScriptIndex(name) : undefined; return { name, capability, script: scriptIndex !== undefined ? DEFAULT_AGNES_IMAGE_SCRIPT : undefined }; }) });
+    return matched || config.channels[0] || createModelChannel({ id: "default", name: i18n.t("config.channels.defaultName"), baseUrl: config.baseUrl, apiKey: config.apiKey, apiFormat: config.apiFormat, models: config.models.map(modelOptionName).map((name) => ({ name, capability: guessCapability(name) })) });
 }
 
 export function resolveModelRequestConfig(config: AiConfig, value: string) {

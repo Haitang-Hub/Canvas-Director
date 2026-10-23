@@ -1,7 +1,7 @@
 import axios, { type AxiosRequestConfig } from "axios";
 
 import i18n from "@/i18n";
-import { buildApiUrl, withLocalProxy, type AiConfig, type ModelCapability, getDefaultImageScriptIndex, DEFAULT_AGNES_IMAGE_SCRIPT, DEFAULT_AGNES_VIDEO_SCRIPT } from "@/stores/use-config-store";
+import { buildApiUrl, withLocalProxy, type AiConfig, type ModelCapability, DEFAULT_EXTENDED_IMAGE_SCRIPT, DEFAULT_EXTENDED_VIDEO_SCRIPT } from "@/stores/use-config-store";
 
 type RequestOptions = { signal?: AbortSignal; timeoutMs?: number };
 
@@ -445,8 +445,8 @@ return await generateImage({
 });`,
         },
         {
-            label: i18n.t("modelPlugin.templates.agnes"),
-            script: DEFAULT_AGNES_IMAGE_SCRIPT,
+            label: i18n.t("modelPlugin.templates.extended"),
+            script: DEFAULT_EXTENDED_IMAGE_SCRIPT,
         },
     ],
     video: [
@@ -732,8 +732,8 @@ return await generateVideo({
 });`,
         },
         {
-            label: i18n.t("modelPlugin.templates.agnesVideo"),
-            script: DEFAULT_AGNES_VIDEO_SCRIPT,
+            label: i18n.t("modelPlugin.templates.extendedVideo"),
+            script: DEFAULT_EXTENDED_VIDEO_SCRIPT,
         },
     ],
     audio: [
