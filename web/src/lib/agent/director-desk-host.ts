@@ -1,6 +1,6 @@
 import type { NavigateFunction } from "react-router-dom";
 
-import { useCanvasStore } from "@/stores/canvas/use-canvas-store";
+import { resolveMediaUrl } from "@/services/file-storage";
 
 /**
  * 画布页内的隐藏导演台宿主：用一个透明但持续渲染的 iframe 承载 3D 导演台，
@@ -10,14 +10,20 @@ import { useCanvasStore } from "@/stores/canvas/use-canvas-store";
 
 const HOST_FRAME_ID = "canvas-agent-director-host";
 const NAVIGATE_MESSAGE_TYPE = "canvas-agent:navigate";
+const APPLY_OPS_MESSAGE_TYPE = "canvas-agent:apply-ops";
+const APPLY_OPS_RESULT_TYPE = "canvas-agent:apply-ops-result";
 /** 宿主实现版本：桥代码更新后递增，使已存在的 iframe 强制重载到最新实现。 */
-const HOST_VERSION = 5;
+const HOST_VERSION = 6;
 
 let currentDeskId = "";
 let navigateRef: NavigateFunction | null = null;
+type DirectorHostApplyOps = (projectId: string, ops: unknown[]) => Promise<unknown>;
+let applyOpsRef: DirectorHostApplyOps | null = null;
 
-/** 导演台弹窗写回画布后广播，宿主页据此刷新本地 store（跨窗口 localforage 不广播）。 */
-const CANVAS_SYNC_CHANNEL = "canvas-director-sync";
+/** 由 Agent 面板注册：把导演台产物作为画布 ops 应用到当前画布（走与 Agent 画布操作相同的路径）。 */
+export function setDirectorHostApplyOps(fn: DirectorHostApplyOps | null) {
+    applyOpsRef = fn;
+}
 
 /** 注册宿主页面的 SPA 导航函数，供 iframe 内的 site_navigate 转发回来使用。 */
 export function setDirectorHostNavigate(navigate: NavigateFunction | null) {
@@ -25,18 +31,33 @@ export function setDirectorHostNavigate(navigate: NavigateFunction | null) {
 }
 
 if (typeof window !== "undefined") {
-    const canvasSync = "BroadcastChannel" in window ? new BroadcastChannel(CANVAS_SYNC_CHANNEL) : null;
-    canvasSync?.addEventListener("message", (event) => {
-        const data = event.data as { type?: string } | null;
-        if (data?.type !== "canvas-updated") return;
-        void useCanvasStore.persist.rehydrate();
-    });
-    window.addEventListener("message", (event) => {
+    window.addEventListener("message", async (event) => {
         if (event.origin !== window.location.origin) return;
-        const data = event.data as { type?: string; path?: string } | null;
-        if (data?.type !== NAVIGATE_MESSAGE_TYPE || typeof data.path !== "string" || !data.path.startsWith("/")) return;
+        const data = event.data as { type?: string; path?: string; requestId?: string; projectId?: string; ops?: unknown[] } | null;
+        if (!data?.type) return;
+        // 导演台窗口（内嵌 iframe 或独立弹窗）写回产物：应用为画布 ops 并回传结果。
+        if (data.type === APPLY_OPS_MESSAGE_TYPE) {
+            const source = event.source as Window | null;
+            const reply = (payload: Record<string, unknown>) => source?.postMessage({ type: APPLY_OPS_RESULT_TYPE, requestId: data.requestId, ...payload }, event.origin);
+            if (!applyOpsRef) return reply({ error: "宿主画布未就绪（请确认当前页面是画布页且面板已连接）" });
+            try {
+                // 产物 blob 存在同源 IndexedDB；按 storageKey 解析出宿主窗口可用的 URL。
+                const ops = await Promise.all((Array.isArray(data.ops) ? data.ops : []).map(async (op) => {
+                    const entry = op as { type?: string; metadata?: { storageKey?: string; content?: string } };
+                    if (entry?.type === "add_node" && entry.metadata?.storageKey) {
+                        entry.metadata.content = await resolveMediaUrl(entry.metadata.storageKey, entry.metadata.content || "");
+                    }
+                    return entry;
+                }));
+                const result = await applyOpsRef(String(data.projectId || ""), ops);
+                return reply({ result });
+            } catch (error) {
+                return reply({ error: error instanceof Error ? error.message : String(error) });
+            }
+        }
+        if (data.type !== NAVIGATE_MESSAGE_TYPE || typeof data.path !== "string" || !data.path.startsWith("/")) return;
         const frame = document.getElementById(HOST_FRAME_ID);
-        // 只允许当前宿主 iframe 发起的导航，避免旧 iframe 残留消息。
+        // 只允许当前宿主 iframe 发起的导航（postMessage 来源校验），避免旧 iframe 残留消息。
         if (frame && (frame as HTMLIFrameElement).contentWindow === event.source) navigateRef?.(data.path);
     });
 }

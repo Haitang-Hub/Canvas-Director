@@ -171,6 +171,10 @@ export function startHttpServer() {
         res.setHeader("Cache-Control", "no-store");
         res.type(path.extname(filePath)).send(await readFile(filePath));
     }));
+    app.post("/director/ready", route(async (req, res) => {
+        const ok = session.markDirectorReady(String(req.body?.clientId || ""), String(req.body?.deskId || ""));
+        res.status(ok ? 200 : 404).json({ ok });
+    }));
     app.post("/api/tools", route(async (req, res) => res.json({ ok: true, result: await session.callTool(req.body?.name, req.body?.input || {}) })));
     app.get("/agent/codex/workspace", (_req, res) => {
         const workspace = ensureSiteWorkspace(config);

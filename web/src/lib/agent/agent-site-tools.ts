@@ -146,7 +146,10 @@ function openDirectorStage(input: SiteToolInput, navigate: NavigateFunction, can
     if (input.shotNodeId && !shotNode) throw new Error(siteText("shotNodeMissing", { id: input.shotNodeId }));
 
     const deskId = (typeof input.deskId === "string" && input.deskId.trim()) || (shotNode?.metadata?.deskId as string | undefined) || "";
-    const directorNode = snapshot.nodes.find((node) => node.type === CanvasNodeType.Director && (!deskId || node.metadata?.directorDeskId === deskId));
+    // 兼容历史数据：部分导演台节点 type 被写成 text，仅靠顶层 nodeType 或 metadata.directorDeskId 标识。
+    const isDirectorNode = (node: { type: string; metadata?: Record<string, unknown> }) => node.type === CanvasNodeType.Director || (node as { nodeType?: string }).nodeType === "director";
+    let directorNode = snapshot.nodes.find((node) => isDirectorNode(node) && (!deskId || node.metadata?.directorDeskId === deskId));
+    if (!directorNode && deskId) directorNode = snapshot.nodes.find((node) => isDirectorNode(node) || node.metadata?.directorDeskId === deskId);
     if (!deskId && !directorNode) throw new Error(siteText("stageNoDirectorNode"));
     const resolvedDeskId = deskId || (directorNode?.metadata?.directorDeskId as string | undefined) || "";
     if (!resolvedDeskId) throw new Error(siteText("stageNoDirectorNode"));

@@ -69,7 +69,7 @@ type DirectorToolInput = {
 
 const DIRECTOR_AGENT_PROTOCOL_VERSION = 7;
 /** 桥实现版本：服务端在多个导演台页面同时连接时优先路由到最新版本。 */
-const DIRECTOR_BRIDGE_VERSION = 5;
+const DIRECTOR_BRIDGE_VERSION = 6;
 
 /**
  * 导演台页面与本机 Canvas Agent 的无界面桥：以 director 角色接入 SSE，
@@ -87,6 +87,16 @@ export function DirectorAgentBridge() {
         let disposed = false;
         const source = new EventSource(`${endpoint}/events?token=${encodeURIComponent(token)}&clientId=${encodeURIComponent(clientId)}&role=director&dv=${DIRECTOR_BRIDGE_VERSION}&desk=${encodeURIComponent(new URLSearchParams(window.location.search).get("instanceId") || "")}`);
 
+        // 编辑器完全加载后上报就绪；未就绪的窗口不参与导演台工具路由。
+        const reportReady = () => {
+            const deskId = new URLSearchParams(window.location.search).get("instanceId") || "";
+            void fetch(endpoint + "/director/ready?token=" + encodeURIComponent(token), {
+                method: "POST",
+                headers: { "content-type": "application/json" },
+                body: JSON.stringify({ clientId, deskId }),
+            }).catch(() => undefined);
+        };
+        reportReady();
         source.addEventListener("hello", (event) => {
             const hello = parseData(event);
             if (!hello || disposed) return;
@@ -401,54 +411,82 @@ async function runDirectorTool(name: string, input: DirectorToolInput) {
 }
 
 /** 从画布 URL 参数解析导演台来源节点；没有来源时返回空。 */
-function readImportTarget() {
+async function readImportTarget() {
+    // 弹窗/iframe 里 store 可能尚未完成异步加载，先等待水合以获得精确的摆放位置。
+    const storeState = useCanvasStore.getState();
+    if (!storeState.hydrated) await useCanvasStore.persist.rehydrate();
     const params = new URLSearchParams(window.location.search);
     const projectId = params.get("fromCanvas")?.trim() || "";
-    const directorNodeId = params.get("fromNode")?.trim() || "";
-    if (!projectId || !directorNodeId) return null;
+    // fromNode 缺失时按导演台实例 ID 反查来源节点，兜底历史 stage_open 打开的窗口。
+    let directorNodeId = params.get("fromNode")?.trim() || "";
+    const instanceId = params.get("instanceId")?.trim() || "";
+    if (!projectId) return null;
     const project = useCanvasStore.getState().projects.find((item) => item.id === projectId);
-    const directorNode = project?.nodes.find((node) => node.id === directorNodeId);
-    if (!project || !directorNode) return null;
+    if (!project) return null;
+    if (!directorNodeId && instanceId) {
+        directorNodeId = project.nodes.find((node) => node.metadata?.directorDeskId === instanceId || (node as { nodeType?: string }).nodeType === "director")?.id || "";
+    }
+    const directorNode = project.nodes.find((node) => node.id === directorNodeId);
+    if (!directorNode) return null;
     return { projectId, directorNodeId, project, directorNode };
 }
 
-const CANVAS_SYNC_CHANNEL = "canvas-director-sync";
-function broadcastCanvasUpdated() {
-    const channel = "BroadcastChannel" in window ? new BroadcastChannel(CANVAS_SYNC_CHANNEL) : null;
-    channel?.postMessage({ type: "canvas-updated" });
-    channel?.close();
+/** 把产物作为画布 ops 发给宿主页应用（与 Agent 画布操作同一路径，React 状态/撤销/快照一致）。 */
+function requestHostApplyOps(projectId: string, ops: unknown[]): Promise<{ canvasNodeId?: string }> {
+    return new Promise((resolve, reject) => {
+        const requestId = crypto.randomUUID();
+        const target = window.self !== window.top ? window.parent : window.opener;
+        if (!target) throw new Error("写回画布失败：当前窗口没有宿主页（请从画布的导演台节点重新 stage_open）");
+        const timer = window.setTimeout(() => {
+            window.removeEventListener("message", onMessage);
+            reject(new Error("写回画布超时：宿主页未响应"));
+        }, 15000);
+        const onMessage = (event: MessageEvent) => {
+            if (event.origin !== window.location.origin) return;
+            const data = event.data as { type?: string; requestId?: string; result?: { canvasNodeId?: string }; error?: string } | null;
+            if (data?.type !== "canvas-agent:apply-ops-result" || data.requestId !== requestId) return;
+            window.clearTimeout(timer);
+            window.removeEventListener("message", onMessage);
+            data.error ? reject(new Error(data.error)) : resolve(data.result || {});
+        };
+        window.addEventListener("message", onMessage);
+        target.postMessage({ type: "canvas-agent:apply-ops", requestId, projectId, ops }, window.location.origin);
+    });
 }
 
-/** 把产物节点放到导演台节点右侧并连线；多次导入依次横向排列。 */
-function placeCaptureNode(projectId: string, directorNodeId: string, project: { nodes: import("@/types/canvas").CanvasNodeData[]; connections: import("@/types/canvas").CanvasConnection[] }, node: import("@/types/canvas").CanvasNodeData) {
-    const directorNode = project.nodes.find((item) => item.id === directorNodeId)!;
-    const importedCount = project.nodes.filter((item) => item.metadata?.sourceDirectorNodeId === directorNodeId).length;
-    const placedNode = {
+/** 构造产物节点（放在导演台节点右侧并连线）；content 由宿主按 storageKey 重解析。 */
+function buildCaptureOps(target: { projectId: string; directorNodeId: string; project: { nodes: import("@/types/canvas").CanvasNodeData[] } }, node: import("@/types/canvas").CanvasNodeData) {
+    const directorNode = target.project.nodes.find((item) => item.id === target.directorNodeId)!;
+    const importedCount = target.project.nodes.filter((item) => item.metadata?.sourceDirectorNodeId === target.directorNodeId).length;
+    const placedNode: import("@/types/canvas").CanvasNodeData = {
         ...node,
         position: { x: directorNode.position.x + directorNode.width + 96 + importedCount * (node.width + 40), y: directorNode.position.y + directorNode.height / 2 - node.height / 2 },
-        metadata: { ...node.metadata, sourceDirectorNodeId: directorNodeId },
+        metadata: { ...node.metadata, sourceDirectorNodeId: target.directorNodeId },
     };
-    const connection = { id: nanoid(), fromNodeId: directorNodeId, toNodeId: placedNode.id };
-    useCanvasStore.getState().updateProject(projectId, { nodes: [...project.nodes, placedNode], connections: [...project.connections, connection] });
-    return placedNode.id;
+    return [
+        { type: "add_node", id: placedNode.id, nodeType: placedNode.type, title: placedNode.title, position: placedNode.position, width: placedNode.width, height: placedNode.height, metadata: placedNode.metadata },
+        { type: "connect_nodes", fromNodeId: target.directorNodeId, toNodeId: placedNode.id },
+    ];
 }
 
-/** 把预演视频写回来源画布并连线到导演台节点；没有来源画布时返回空。 */
+/** 把预演视频写回来源画布并连线到导演台节点。 */
 async function appendAnimaticToCanvas(blob: Blob) {
-    const target = readImportTarget();
-    if (!target) return "";
+    const target = await readImportTarget();
+    if (!target) throw new Error("写回画布失败：找不到来源画布或导演台节点，请从画布的导演台节点重新 stage_open 后再导出");
     const uploaded = await uploadMediaFile(blob, "video");
-    const node = { ...createCanvasNode(CanvasNodeType.Video, { x: 0, y: 0 }, videoMetadata(uploaded)), title: "导演台预演" };
-    return placeCaptureNode(target.projectId, target.directorNodeId, target.project, node);
+    const node = { ...createCanvasNode(CanvasNodeType.Video, { x: 0, y: 0 }, videoMetadata(uploaded)), title: "导演台预演", id: "video-" + crypto.randomUUID() };
+    const result = await requestHostApplyOps(target.projectId, buildCaptureOps(target, node as import("@/types/canvas").CanvasNodeData));
+    return result.canvasNodeId || node.id;
 }
 
-/** 把当前视角截图写回来源画布并连线到导演台节点；没有来源画布时返回空。 */
+/** 把当前视角截图写回来源画布并连线到导演台节点。 */
 async function appendFrameToCanvas(dataUrl: string, fileName: string) {
-    const target = readImportTarget();
-    if (!target) return "";
+    const target = await readImportTarget();
+    if (!target) throw new Error("写回画布失败：找不到来源画布或导演台节点，请从画布的导演台节点重新 stage_open 后再导出");
     const uploaded = await uploadImage(dataUrl, { fileName });
-    const node = { ...createCanvasNode(CanvasNodeType.Image, { x: 0, y: 0 }, imageMetadata(uploaded)), title: "导演台参考帧" };
-    return placeCaptureNode(target.projectId, target.directorNodeId, target.project, node);
+    const node = { ...createCanvasNode(CanvasNodeType.Image, { x: 0, y: 0 }, imageMetadata(uploaded)), title: "导演台参考帧", id: "image-" + crypto.randomUUID() };
+    const result = await requestHostApplyOps(target.projectId, buildCaptureOps(target, node as import("@/types/canvas").CanvasNodeData));
+    return result.canvasNodeId || node.id;
 }
 
 async function postResult(endpoint: string, token: string, clientId: string, requestId: string, body: { result?: unknown; error?: string }) {

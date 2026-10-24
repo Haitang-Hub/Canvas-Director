@@ -63,7 +63,7 @@ const DIRECTOR_TOOLS = new Set<ToolName>([
 /** 管理网页画布连接、状态、附件和工具请求。 */
 export class CanvasSession {
     private clients = new Map<string, ServerResponse>();
-    private directorClients = new Map<string, { res: ServerResponse; version: number; deskId: string }>();
+    private directorClients = new Map<string, { res: ServerResponse; version: number; deskId: string; ready: boolean }>();
     private activeDeskId = "";
     private clientFocusOrder = new Map<string, number>();
     private pending = new Map<string, PendingRequest>();
@@ -298,9 +298,8 @@ export class CanvasSession {
         res.writeHead(200, { "Content-Type": "text/event-stream", "Cache-Control": "no-cache", Connection: "keep-alive" });
         if (!statusOnly) {
             if (role === "director") {
-                const deskId = url.searchParams.get("desk") || "";
-                this.directorClients.set(clientId, { res, version: Number(url.searchParams.get("dv")) || 0, deskId });
-                if (deskId) this.activeDeskId = deskId;
+                // ready 由桥在编辑器完全加载后经 /director/ready 上报；未就绪的窗口不参与路由。
+                this.directorClients.set(clientId, { res, version: Number(url.searchParams.get("dv")) || 0, deskId: url.searchParams.get("desk") || "", ready: false });
             }
             else {
                 this.clients.set(clientId, res);
@@ -529,13 +528,26 @@ export class CanvasSession {
         return await this.requestClientTool(this.targetClientId, name, input);
     }
 
-    /** 向版本最新的导演台页面发送工具请求并等待调用结果；旧版本页面并存时不干扰新页面。 */
+    /** 向导演台页面发送工具请求并等待调用结果；只路由到已就绪的客户端，优先最近 stage_open 的导演台。 */
     private async requestDirectorTool(name: ToolName, input: Record<string, unknown>) {
-        if (!this.directorClients.size) throw new Error("当前没有已连接的导演台页面：先用 stage_open 打开导演台（或在浏览器中从画布进入 3D 导演台），再调用导演台工具");
-        const latest = Math.max(...this.directorClients.values().map((item) => item.version));
-        const entry = [...this.directorClients.entries()].filter(([, item]) => item.version === latest).pop();
+        const entries = [...this.directorClients.entries()].filter(([, item]) => item.ready);
+        if (!entries.length) throw new Error("导演台仍在后台加载中，请稍等几秒后重试（未就绪的页面不参与路由）");
+        const active = entries.filter(([, item]) => item.deskId && item.deskId === this.activeDeskId);
+        const pool = active.length ? active : entries;
+        const latest = Math.max(...pool.map(([, item]) => item.version));
+        const entry = pool.filter(([, item]) => item.version === latest).pop();
         if (!entry) throw new Error("当前没有已连接的导演台页面");
         return await this.requestClientTool(entry[0], name, input);
+    }
+
+    /** 导演台编辑器完全加载后的就绪上报；只有就绪的客户端参与工具路由。 */
+    markDirectorReady(clientId: string, deskId: string) {
+        const entry = this.directorClients.get(clientId);
+        if (!entry) return false;
+        this.directorClients.set(clientId, { ...entry, deskId: deskId || entry.deskId, ready: true });
+        if (deskId || entry.deskId) this.activeDeskId = deskId || entry.deskId;
+        logger.info("Director client ready", { clientId, deskId: deskId || entry.deskId });
+        return true;
     }
 
     /** 向指定网页客户端发送工具请求并等待调用结果；预览导出（离屏渲染）实测超过 30 秒，单独放宽到 90 秒。 */

@@ -21,6 +21,7 @@ import { useShallow } from "zustand/react/shallow";
 import { useAgentStore, type AgentAttachment, type AgentBootstrapStatus, type AgentCanvasContext, type AgentCanvasReference, type AgentChatItem, type AgentConversationState, type AgentModel, type AgentPendingApproval, type AgentPendingToolCall, type AgentPermissionMode, type AgentReasoningEffort, type AgentThreadSummary } from "@/stores/use-agent-store";
 import { type CanvasAgentOp, type CanvasAgentSnapshot } from "@/lib/canvas/canvas-agent-ops";
 import { isSiteTool, runSiteTool } from "@/lib/agent/agent-site-tools";
+import { setDirectorHostApplyOps } from "@/lib/agent/director-desk-host";
 import { acknowledgeCodexHistory, activateAgentClient, AgentApiError, discoverAgentConfig, fetchAgentJson, interruptCodexTurn, postCodexApproval, postState, postToolResult } from "@/services/api/canvas-agent";
 import { AgentChatTimeline, AgentTaskProgress, AgentUsageBar } from "./agent-chat";
 import { AgentChatComposer } from "./agent-chat-composer";
@@ -201,6 +202,15 @@ export function LocalAgentPanel({ embedded, headless, autoConnect }: { embedded?
             }
         });
         return () => { disposed = true; };
+    }, []);
+    // 注册导演台产物写回通道：iframe/弹窗内的导出经 postMessage 应用为当前画布 ops。
+    useEffect(() => {
+        setDirectorHostApplyOps(async (_projectId, ops) => {
+            const context = canvasContextRef.current;
+            if (!context) throw new Error("宿主画布未就绪（请确认当前页面是画布页且面板已连接）");
+            return context.applyOps(ops as CanvasAgentOp[]);
+        });
+        return () => setDirectorHostApplyOps(null);
     }, []);
     const loadThreadSnapshot = useCallback(async (threadId: string, sequence: number, response?: AgentThreadResponse, expectedTurnId = "") => {
         let thread = response;

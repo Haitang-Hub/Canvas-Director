@@ -5,6 +5,8 @@ description: 当前版本已实现但仍需人工验证的变更项
 
 # 待测试
 
+- 导演台写回同步：静默 iframe / 弹窗写回画布后，画布页应自动出现新节点（无需手动刷新）——广播已延迟到 400ms 防抖写入落盘之后。
+- 导演台写回可靠性：preview_render_frame / preview_export_animatic 写回前会等待画布数据水合完成，来源缺失时直接报错（不再静默返回）；导出成功时画布节点自带真实内容，模型不应手工创建占位节点。
 - 导演台多实例路由：同时存在多个导演台页面（如旧弹窗+新内嵌）时，stage_open 后的导演台工具应优先路由到最近开启的实例——导出的预演帧/视频写回当前画布而不是旧导演台所属画布。
 - 导演台清场工具：`stage_clear_scene` 应删除场景全部角色与道具（keepCameras 默认 true 保留机位），用于清掉新建导演台自带的"角色01"；Agent 编排指引已加入"清场→摆位（避开已有对象）→构图检查→导出"流程。
 - 导演台精细编排工具：`stage_list_presets` 应返回全部姿势（20 个，如 phone=看手机）、动作（6 个）、几何、运镜模板（official 8 + community 10）、节奏预设（6 个）与跟踪部位；`stage_place_character` 支持 rotation 朝向（度）、pose 姿势预设、name；`stage_place_prop` 支持 rotation/scale；`stage_update_object` 可改名/朝向/缩放/可见性/锁定/颜色/换姿势/动作（null 清除）/poseControls 关节微调（如 body.pitch）；`camera_apply_preset` 对机位一键生成运镜轨迹（subjectObjectId 跟踪角色、range 0.25~3），`camera_update_keyframe`/`camera_delete_keyframe` 精修与删除关键帧（time/easing/pointBehavior+holdSeconds/跟踪部位），`camera_set_keyframe` 支持 time，`camera_set_pacing` 调节奏（presetId 或 duration/interpolation/easing/speedMode）。
