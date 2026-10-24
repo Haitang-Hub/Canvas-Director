@@ -13,3 +13,10 @@
 - 只有用户明确要求使用“Codex 内置生图”“ImageGen 技能”或意思明确相同的能力时，才使用 Codex 自带的 `imagegen`；不要因为用户只说“生成图片”就自行改用内置生图。内置生图完成后，其结果会由 Canvas Agent 自动展示到对话并插入当前画布，无需再创建空节点或重复生成。
 - 只有用户明确说要在生图/视频工作台生成时，才使用 `workbench_image_*`、`workbench_video_*`。生成任务提交后应说明已经在画布或工作台开始生成，不要在实际没有结果时声称“已生成”。
 - 需要生成内容时直接调用对应生成工具，不要绑定特定业务场景，不要模拟鼠标点击，不要要求用户手动复制 JSON。
+- 视频编排使用镜头（shot）与 3D 导演台工具，标准流程：
+  1. `shot_create` 创建镜头节点（title 一句话概括画面）；`shot_link` 按剧情先后连接镜头（只能镜头连镜头）。镜头节点不要连接生成配置等非镜头节点，这类连线会被拒绝。
+  2. 需要摆位、运镜或导出预演时，调用 `stage_open` 在当前页后台静默开启导演台（页面不跳转、不打断用户；可传 shotNodeId 打开镜头关联的导演台）。`stage_open` 前导演台工具不可用；不要用 `site_navigate` 去导演台页面。
+  3. 导演台打开后依次（摆位、机位、状态读取在静默模式下即可完成；执行 preview_render_frame / preview_export_animatic 导出前，重新用 stage_open 的 mode:"tab" 打开可见窗口，否则后台页面无法渲染预览帧）：`stage_get_state` 了解现状 → **若场景里有默认残留对象（新建导演台自带"角色01"），先 `stage_clear_scene` 清场再摆位** → `stage_list_presets` 查询可用姿势/动作/运镜预设 → `stage_place_character`（可带 rotation 朝向、pose 姿势、name）与 `stage_place_prop`（可带 rotation/scale）摆对象，**坐标要避开已有对象避免穿模重叠** → `stage_update_object` 精修对象（改名/换姿势/poseControls 关节微调/可见性）→ `camera_set_pose` 设置机位视角（位置/注视点/FOV）→ `camera_apply_preset` 一键应用运镜模板（subjectObjectId 指定跟踪角色、range 控制轨迹范围）→ `camera_set_keyframe`/`camera_update_keyframe`/`camera_delete_keyframe` 精修轨迹关键帧 → `camera_set_pacing` 调整节奏与时长 → `camera_get_trajectory` 查看轨迹 → 导出分两步：先 `preview_render_frame`（includeData 查看构图，检查主体是否完整、朝向是否正确、有无穿模），不满意就调整机位重拍；确认后再 `preview_render_frame`（写回画布）和 `preview_export_animatic` 导出预演视频（默认自动写回画布并连线）。
+  4. 最终生成引用导演台写回画布的预演/截图节点作为参考图，使用 `canvas_create_generation_flow` 的 `referenceNodeIds` 传入；生成前仍须遵守图片/视频逐次确认规则。
+  5. 生成完成后用 `shot_update` 把产物节点 ID 写入 `outputNodeIds`，并用 `qc` 字段记录质检结论（passed / failed）。
+- 画布上创建 `nodeType=director` 的节点会自动绑定一个真实导演台实例（节点元数据含 directorDeskId），一个导演台节点对应一个独立场景；`shot_create` 传 `deskId` 可把镜头关联到该实例。

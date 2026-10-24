@@ -15,6 +15,7 @@ import {
 } from "./editor/io/hostBridge";
 import { DIRECTOR_DESK_VERSION } from "./version";
 import { useDirectorStore } from "./editor/store/directorStore";
+import { DirectorAgentBridge } from "./editor/hooks/use-director-agent-bridge";
 import {
   ensureDirectorDeskRecordForId,
   ensureDirectorDeskRecords,
@@ -171,6 +172,7 @@ export default function DirectorEditorPage() {
 
   return (
     <div className="h-dvh w-full overflow-hidden">
+      <DirectorAgentBridge />
       <div className="director-desk-app" data-theme="dark">
         <div className="app-shell">
           <header className="top-bar">

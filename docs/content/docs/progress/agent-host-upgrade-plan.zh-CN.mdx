@@ -1,0 +1,119 @@
+---
+title: Agent Host 升级设计
+description: 自研 Agent 推理内核设计——项目将不再只依赖 Codex，用户可自主配置任意模型，Codex 降级为可选外部 MCP 客户端
+---
+
+# Agent Host 升级设计
+
+本文档是[画布导演台整改规划](/zh-CN/docs/progress/canvas-director-overhaul-plan)阶段 3 的详细设计。目标一句话：**canvas-agent 的推理内核由 Codex SDK 替换为自研 Agent Host，项目不再只依赖 Codex；用户在应用内自主配置任意模型；Codex 降级为可选的外部 MCP 客户端，接入路径不变。**
+
+## 现状与耦合清单
+
+canvas-agent（Node/TS 单进程）当前承担四个角色：内部 Codex 运行时宿主、HTTP/SSE 服务、stdio MCP Server、Skill 存储。与 Codex 的耦合集中在四个文件（约 2400 行）：
+
+| 文件 | 行数 | 职责 | 处置 |
+| --- | --- | --- | --- |
+| `agent/codex-client.ts` | 900 | spawn `codex app-server`、JSON-RPC、线程/turn 管理、审批请求、事件流 | **替换**为 Agent Loop |
+| `agent/codex.ts` | 619 | turn 编排、Skill 草稿生成、模型/Skill 列表、审批路由 | **替换**，接口面保留 |
+| `agent/codex-history.ts` | 740 | 从 `~/.codex` 会话 JSONL 读历史、摘要线程 | **替换**为自管 JSONL store |
+| `agent/codex-protocol.ts` | 158 | Codex 私有协议类型 | **删除** |
+| `agent/claude.ts` | 56 | Claude CLI 一次性适配（TODO 已计划升级） | 由新内核吸收，删除 |
+
+以下资产**全部保留、协议不变**：`canvas/session.ts`（SSE 会话、桥、断线重放、多标签隔离）、`server/http.ts`（REST 面）、`server/mcp.ts`（stdio MCP，供外部 Agent 接入）、`skills/store.ts`（SkillStore）、`agent/message-metadata.ts`、前端 `local-agent-panel` / `agent-chat` 全部事件处理。
+
+## 目标架构
+
+```txt
+canvas-agent（单进程不变）
+  ┌ Agent Host（新增 src/host/）
+  │   loop.ts        推理状态机：idle → thinking → toolCall → executing → observing → responding
+  │   model-router.ts 按角色路由 Model Profile（default / planner / toolCaller / qc），失败降级
+  │   provider.ts    Vercel AI SDK 封装：OpenAI 兼容为主干，Anthropic / Gemini 薄适配
+  │   tool-loop.ts   工具调用循环：直接函数调用本进程工具面（保持 schema 校验与返回结构）
+  │   approval.ts    审批门：生成类 / 破坏性工具必须经既有 codex_approval 事件流确认
+  │   session-store.ts 自管 JSONL（append-only，恢复 / 分叉 / 压缩）
+  │   profile-store.ts Model Profile 持久化（由前端经 token 鉴权通道写入）
+  └ 既有层不动：session / http / mcp / skills / message-metadata
+```
+
+**事件协议冻结**：SSE 事件名与 payload 结构不变（`hello / codex_state / tool_call / codex_approval / codex_approval_resolved / agent_event / agent_bootstrap / agent_log / chat_message / conversation_changed / workspace_changed / skills_changed / agent_error`）。`agent_event` 内部的 Codex item 结构由 host 转换层适配为既有 item 语义（`item.started / item.updated / item.completed`，text 与 thinking 增量），前端无感。`codex_state`、`codex_approval` 事件名保留（前端不改），语义变为"Agent 状态 / Agent 审批"。
+
+## 模块设计
+
+### 1. Agent Loop（loop.ts）
+
+Reducer 状态机，不引入 XState：
+
+```
+idle → thinking（流式推理，转发 text/thinking 增量）
+     → tool_call（模型产出工具调用）
+     → 需审批？→ approval（下发 codex_approval，等待决定；decline/cancel 回 observing 并注入拒绝结果）
+     → executing（执行工具，长任务工具立即返回 jobId）
+     → observing（结果裁剪回写上下文）→ thinking…
+     → done（无更多工具调用，turn 结束）
+```
+
+规则沿用现状：abort 随时可达；新消息终止旧 turn 前递归检查待审批 / 待回答；每个转换点挂 hook（日志、token 统计、成本、事件推送）。`threadId / turnId / itemId` 三级归属语义不变（AGENTS.md 既有约束）。
+
+### 2. Model Profile 与 Model Router
+
+```ts
+ModelProfile { id, name, provider: "openai-compatible" | "anthropic" | "gemini",
+               baseURL, apiKey, model, thinkingLevel?,
+               capabilities: { vision, toolCalling }, role: "default" | "planner" | "toolCaller" | "qc" }
+```
+
+- 配置入口在**前端**：`use-config-store` 已有多渠道（baseUrl/apiKey/model）配置，新增"Agent 角色"绑定字段后经既有 token 鉴权通道同步到 canvas-agent 的 `profile-store`，不在本机做二次配置。
+- API Key 本地存取沿用现有渠道存储机制；加密存储列为独立待办（现状 localforage 明文，不虚假承诺）。
+- Router 按 role 取 Profile；调用失败按 401/429/5xx 分类降级到 default Profile 并发 `agent_log` 说明。
+- 会话记录所用 Profile；切换不影响进行中 turn。
+- 首版以 OpenAI 兼容协议为主干（覆盖项目现有渠道场景与 canvas-proxy 的全部现存用途），Anthropic / Gemini 用 AI SDK 现成 provider。
+
+### 3. 工具调用循环
+
+Agent Host 以**进程内函数调用**本进程已注册的 47 个工具（33 画布/工作台 + 14 镜头/导演台），走与 stdio MCP 相同的 `toolInputSchemas` 校验与 `session.callTool` 入口，保证内外部 Agent 行为一致。工具 description 即提示词素材，新增工具时同步更新系统提示词中的工具使用指引（现 `AGENT_PROMPT`）。
+
+### 4. 审批门（approval.ts）
+
+- 触发条件：生成类工具（`workbench_*_generate`、`canvas_generate_*`、`canvas_run_generation`）、删除类工具、批量写（>10 ops）。
+- 审批请求复用 `codex_approval` 事件与 `/agent/codex/approval` 端点（前端审批卡与 API 不改），payload 补 `costEstimate` 与影响范围摘要字段（前端可选展示）。
+- 落实"每条生图/生视频路径逐任务确认"的既有承诺：该确认与前端 `confirmTools` 开关独立，Host 侧强制。
+
+### 5. 自管会话存储（session-store.ts）
+
+- 路径：`~/.canvas-agent/threads/<threadId>.jsonl`，append-only。
+- 事件模型对齐现有前端消息归属（role/text/thinking/toolCall/usage/error/turn 边界），`readThread` 输出结构兼容现 `threadMessages` 摘要格式，前端历史渲染不改。
+- 支持：恢复（重启后读文件重建）、分叉（从指定 turn 重发，对应现 `resendFrom`）、压缩（超阈值时摘要旧 turn 并落 `compaction` 记录）。工作区文件锁沿用 `beginCodexMutation` 串行化思路。
+- 旧 `~/.codex` 历史不迁移（项目未上线，无兼容负担；用户如需可保留 Codex 外部客户端查看旧会话）。
+
+### 6. Skill 保留
+
+SkillStore 及其 HTTP 面不动。Skill 从"Codex skill 机制"改为 Host 侧提示词注入：启用中的 skill 以 markdown 注入系统提示词（对齐现有 `agent-instructions.md` 注入方式），Skill 草稿生成改为一次普通 LLM 调用。
+
+## 实施步骤
+
+1. **host 骨架**：loop + provider + profile-store，先在 shadow 模式接入（HTTP 加 `engine: "codex" | "host"` 开关，默认 codex），前后端双跑对照。
+2. **工具循环与审批**：host 引擎接通 47 个工具与审批门，验证镜头/导演台工具全链路。
+3. **会话存储切换**：自管 JSONL，历史面板 / 分叉 / 断线重放回归。
+4. **默认切换与清理**：host 设为默认引擎；删除 codex-* 四文件、`@openai/codex` 依赖、`claude.ts`；canvas-proxy 移除全部 Responses 协议补丁（保留纯 CORS 转发）；README / docs 更新模型配置说明。
+5. **外部客户端回归**：`codex mcp add` stdio 接入、Claude Code / ZCode 接入用例回归（工具面与协议未变，应零改动通过）。
+
+每步独立提交；步骤 1-3 期间 Codex 引擎保持可用可回退。
+
+## 风险与对策
+
+| 风险 | 对策 |
+| --- | --- |
+| 重写破坏 SSE 协议 / 前端 | 事件协议冻结 + shadow 双跑对照 + 步骤 4 前不删旧引擎 |
+| 工具调用准确率不如 Codex 内建循环 | 系统提示词覆盖 `AGENT_PROMPT` 全部指引；建立"意图 → 工具与参数"评测集，切换前回归 |
+| 流式增量语义差异（thinking/text 分片） | host 转换层将 AI SDK 流块映射为既有 item 事件，单测覆盖分片拼接与断线重放快照 |
+| 审批绕过 | Host 与前端确认门双层保留；生成类工具 Host 侧强制 |
+| 多模型 tool-calling 格式差异 | 收敛到 AI SDK 统一 toolCalling 抽象；不支持工具调用的模型在 Profile 校验时拒绝绑定为工具角色 |
+| 凭据安全 | 沿用现有本地存储与 token 鉴权通道；加密列为独立待办 |
+
+## 验收标准
+
+- 用户在前端配置任意 OpenAI 兼容渠道即可驱动全部 47 个工具；全程无需安装或登录 Codex。
+- 前端聊天面板零协议改动；历史、分叉、审批、Skill、多标签隔离行为与现状一致。
+- `codex mcp add infinite-canvas -- npx @basketikun/canvas-agent@latest mcp` 仍可接入并操作画布与导演台。
+- `@openai/codex` 依赖与 canvas-proxy 协议补丁从仓库移除。

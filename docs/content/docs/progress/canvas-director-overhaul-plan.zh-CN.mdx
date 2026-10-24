@@ -1,0 +1,121 @@
+---
+title: 画布导演台整改规划
+description: 基于 Vite 前端与 canvas-agent 单进程真实架构的整改基准：导演台 MCP 化、任务注册表、自研 Agent Host 与高阶编排
+---
+
+# 画布导演台整改规划
+
+本文档是 Canvas Director 全方位整改的正式基准。方向性诊断（Codex 运行时锁定、私有工具桥、导演台 MCP 能力缺失）经代码核查成立；本规划把整改落在项目的真实架构上执行，取代早期基于 Go 后端 / Next.js 假设的方案。
+
+## 事实基准
+
+整改以经代码核查确认的技术事实为地基，所有设计不得偏离：
+
+- 项目没有后端服务：前端 Vite 7 + React 19 + TypeScript + Ant Design 6 + Zustand + localforage，画布项目保存在浏览器本地；导演台场景存 localStorage / IndexedDB。
+- `canvas-agent` 是唯一的本地 Node 进程，承担内部 Codex 运行时（`@openai/codex` app-server）、HTTP/SSE 服务与 stdio MCP Server 双身份；`canvas-proxy` 只做 CORS 与 Responses 协议补丁。
+- 前后端通信用 SSE 命名事件（`hello / codex_state / tool_call / codex_approval / codex_approval_resolved / agent_event / agent_bootstrap / agent_log / chat_message / conversation_changed / workspace_changed / skills_changed / agent_error / ping`），不是 NDJSON；上行走 `POST /canvas/state`、`/canvas/activate`、`/canvas/result`、`/api/tools` 与 `/agent/codex/*`。
+- Agent 工具共 33 个，全部面向画布、工作台、提示词与素材；导演台没有任何 MCP 工具。导演台已有的浏览器内二创协议（`capabilities.get / project.get / timeline.get / export.frame / export.video / plugin.result.submit / plugin.results.list`）只覆盖读取与帧/视频导出，Agent 无法触达。
+- 已有可复用资产：会话级 revision 乐观锁（`CONVERSATION_STALE`）、工具确认门（`confirmTools` + `isCanvasWriteTool`）、Codex 审批卡（`codex_approval`）、`SkillStore`、上下文裁剪（`compactCanvasState`）、SSE 断线重放、视频任务断点续传、多标签页 turn 隔离。
+
+## 已确认的决策
+
+1. 数据真相源：浏览器 localforage 保持唯一真相源。Agent 只通过工具桥操作当前打开的画布，不在 canvas-agent 侧建立第二份项目数据。代价（Agent 不能离线 / 后台改画布）可接受：长任务产物回流画布时用户通常在线。
+2. Codex 去留：自研 Agent Host 为默认运行时；Codex 降级为可选外部 MCP 客户端（stdio 接入保留），不彻底删除。
+3. 布局改版：渐进式。对话面板可放大为分屏主区、可折叠；不推翻现有画布为主的交互，先培养习惯再评估默认布局。
+4. 阶段顺序：导演台 MCP 化 → 任务注册表与审批 → 自研 Agent Host → 高阶编排。阶段 1 完全在现有 Codex 运行时上验证，不依赖任何运行时替换。
+
+## 目标架构
+
+```txt
+浏览器（Vite / React / Zustand）
+  对话面板 │ 画布视口 │ 导演台视口 │ 任务时间线 │ 审批卡片
+  数据真相源：localforage（画布）+ localStorage / IndexedDB（导演台）
+        │ SSE 下行（事件协议冻结）
+        │ POST /canvas/state、/canvas/result、/api/tools 等上行
+canvas-agent（单 Node 进程，双身份）
+  Agent 推理层（阶段 3 由 Codex SDK 换为 Vercel AI SDK + Model Profile）
+  MCP 工具面（现有 33 个 + shot / stage / camera / preview + job / qc + memory）
+  任务注册表（阶段 2；执行仍在浏览器）
+  对外端点：stdio MCP（现有）+ HTTP（补 token 鉴权）
+canvas-proxy（阶段 3 后仅保留纯 CORS 转发）
+```
+
+结构判断：不拆进程、不新建独立的 Project MCP Server 进程、不引入 Go / Next.js / Redis / 数据库。所谓"统一工具面"就是 canvas-agent 现有工具集的扩展。阶段 1、2 全部在现有 Codex 运行时上增量完成，前端对话面板事件协议不变。
+
+## 阶段 1：导演台与镜头 MCP 化
+
+工具新增（全部经现有 `tool_call` 桥下发浏览器执行）：
+
+- `shot_*`：`shot_create`、`shot_link`、`shot_update`、`shot_delete`、`shot_fork`
+- `stage_*`：`stage_open`、`stage_set_environment`、`stage_place_character`、`stage_place_prop`、`stage_remove_object`
+- `camera_*`：`camera_set_keyframe`、`camera_get_trajectory`、`camera_preview`
+- `preview_*`：`preview_render_frame`、`preview_export_animatic`、`preview_export_depth`、`preview_export_normal`、`preview_export_camera_path`
+
+按复用度分两步实施：
+
+- （a）闭环最小集（可直接落地）：`preview_render_frame` 复用二创协议 `export.frame`（干净帧），`preview_export_animatic` 复用 `export.video`（参考视频）；`stage_*` / `camera_*` 在二创协议新增写 action，内部调用导演台 store 既有 mutation，不重写 3D 逻辑；`shot_*` 落在画布数据层（见下）。
+- （b）结构引导导出（新增 3D 能力，后置）：`preview_export_depth / preview_export_normal / preview_export_camera_path` 目前不存在，需要导演台新增离屏渲染（深度材质、法线材质）与相机轨迹序列化；作为（a）闭环验证后的增强，不阻塞验收。
+
+镜头数据模型（浏览器侧）：
+
+- 画布新增 `shot` 节点类型：持有导演台 desk 实例引用 + 导演台 camera shot id + `generation`（`guide_refs`、`outputs`）与 `qc` 元数据。现有 `director` 节点是其前身，升级演进而非并存两套模型。
+- `sequence` 以画布分组表达，维护镜头顺序；不新建服务端实体。
+- 导演台场景新增 `shotId` 反向引用，与画布 shot 节点双向关联。
+- 画布 store 新增 `projectRevision`；写工具携带 `expectedRevision`，由浏览器在应用 ops 时校验，冲突经 `/canvas/result` 返回 `PROJECT_STALE` 与当前 revision（复用 `CONVERSATION_STALE` 语义）。canvas-agent 不持有项目 revision。
+
+验收：用现有外部 Codex（`codex mcp add` 接入 stdio 端点）完整跑通"建镜头 → 摆位 → 运镜 → 导出预演帧 / 预演视频 → 作为参考触发生成"。若外部 Agent 用导演台工具不顺手，问题在工具粒度而非推理层，此时调整成本最低——这是把本阶段放在第一位的核心原因。
+
+## 阶段 2：任务注册表与审批
+
+执行位置事实：所有生成由浏览器执行（`services/api` 直连 OpenAI 兼容接口），预演渲染也是浏览器 Three.js，canvas-agent 无法代替浏览器执行任何生成。因此本阶段建的是任务注册表，不是 Node worker 池：
+
+- canvas-agent 维护 job 注册表：`jobId`、状态机（`queued / active / succeeded / failed / cancelled`）、`commandId` 幂等键、绑定的 shot / 节点。执行仍在浏览器，浏览器经现有桥上报状态，SSE 新增 `task_progress / task_done` 事件。
+- 断连恢复：浏览器重连后凭节点 metadata 中的任务标识（视频 `videoTaskId` 持久化已有雏形）重新上报对齐注册表；远端生成本身不中断。
+- 生成与写入分离：生成成功只产生产物，写入画布 / 镜头需显式 `shot_update` 或画布工具调用；同一 `commandId` 重试不产生重复产物或节点。
+- 新增 `job_status`、`job_cancel`、`job_list`、`qc_mark`、`qc_list` 工具。
+- 审批：唯一强制点在浏览器执行层。生成类工具调用无论来自内部还是外部 Agent，一律经确认门（在 `confirmTools` 基础上对生成类改为必选确认，符合"每条生图 / 生视频路径都要逐任务确认"的既有承诺）；审批卡补充成本预估与影响范围。
+
+## 阶段 3：自研 Agent Host
+
+保留（复用，不改协议）：`canvas/session.ts`、`server/http.ts`、`skills/store.ts`、`agent/message-metadata.ts` 与前端 `local-agent-panel` / `agent-chat` 的事件处理；SSE 事件协议冻结；`SkillStore`、附件、审批 UI、断线重放、断点续传、stdio MCP 端点。
+
+替换（约 2600 行 Codex 绑定面）：`agent/codex-client.ts`、`codex.ts`、`codex-history.ts`、`codex-protocol.ts` → Vercel AI SDK 推理循环；Agent 以 MCP Client 身份调用本进程工具面，保持协议边界。
+
+- 模型配置：应用内 Model Profile（`provider / baseURL / apiKey / model / thinkingLevel / role`），由浏览器 `use-config-store` 经既有 token 鉴权通道同步给 canvas-agent，避免二次配置；本地存储沿用现有机制，加密作为独立待办评估。会话记录所用 profile，切换模型不影响进行中的会话。
+- 会话存储：JSONL 自管（append-only，支持恢复与压缩），不再依赖 `~/.codex`。
+- 移除：`@openai/codex` 依赖、canvas-proxy 全部 Responses 协议补丁（仅保留纯 CORS 转发）、`~/.codex/config.toml` 模型固定逻辑。
+- Codex 降级为外部 MCP 客户端，stdio 接入路径不变；HTTP MCP 端点补 token 鉴权，兼容性矩阵（Codex / Claude Code / ZCode / Qoder / Trae）作为发布门禁持续维护。
+
+验收：用户在应用内配置任意 OpenAI 兼容模型即可驱动全部工具；前端聊天面板无需改协议；`codex mcp add` 仍可接入。
+
+## 阶段 4：高阶编排与融合体验
+
+- `memory_read / memory_save`：项目级与全局两级、本地文件、只存决策性信息，不存原始产物；跨轮次保持角色与风格一致性。
+- Skill：以 `SkillStore` 编排"剧本 → shot list → 摆位运镜 → 预演 → 生成 → QC"跨视图工作流；brief、shot list、animatic、视频生成是审批关卡。
+- Subagent：并行镜头探索（预演、生成、QC），复用工具面与审批门；同一时刻单镜头一个进行中任务。
+- 布局渐进式：对话面板可放大为分屏主区、可折叠；任务时间线展示 job 状态。融合交互按需逐个落地：镜头卡片显示导演台缩略图（离屏渲染 + 缓存）、共享 `currentShotId / playhead / selection`、画布 zoom 平滑进入导演台、导演台俯视正交模式、`shot_fork` 变体并排。
+
+## 工具契约规范
+
+1. 写操作携带 `expectedRevision`，冲突返回 `PROJECT_STALE` + 当前 revision。
+2. 长任务立即返回 `jobId`，不阻塞推理循环。
+3. 生成类工具返回成本预估并强制进入确认门。
+4. 稳定 `commandId`：重试不产生重复产物；生成成功不自动写入画布。
+5. 导演台工具与画布工具同等对待，无只读例外。
+6. 工具 `description` 当产品文案维护，建立"意图 → 期望工具与参数"评测集，随描述迭代回归。
+
+## 风险与对策
+
+| 风险 | 对策 |
+| --- | --- |
+| 阶段 3 重写推理层破坏现有 SSE 协议 | 包装层复用、事件协议冻结、前端不改；先在内部与 Codex 路径双跑对照 |
+| 浏览器唯一真相源导致 Agent 无法后台改画布 | 接受该代价；断线重放与任务恢复已覆盖用户在线场景 |
+| 导演台写工具与 3D 渲染耦合复杂 | 二创协议新增 action、复用导演台 store 既有 mutation，不改渲染逻辑 |
+| 新旧工具语义重叠 | 新工具按创作对象命名，重叠的旧画布工具逐步收敛到 `shot_*` |
+| Model Profile 凭据安全 | 经本地 token 鉴权通道同步，不落服务端；加密作为独立待办评估 |
+| 外部 Agent 工具调用准确率 | 工具描述按产品文案打磨；评测集与兼容性矩阵作为发布门禁 |
+| 画布页单组件改造风险 | 阶段 1 只新增节点类型与 store 字段，不动现有渲染逻辑 |
+
+## 明确不做
+
+不建 Go 后端；不迁 Next.js；不引入 Redis / 对象存储 / 数据库；不在 canvas-agent 侧建第二份项目数据真相源；不重写画布与导演台渲染；不推翻画布为主的布局。

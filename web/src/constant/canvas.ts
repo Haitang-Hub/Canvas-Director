@@ -18,6 +18,7 @@ export const NODE_DEFAULT_SIZE = {
     [CanvasNodeType.Audio]: { width: 340, height: 120, get title() { return i18n.t("canvas.nodeTypes.audio"); } },
     [CanvasNodeType.Group]: { width: 760, height: 480, get title() { return i18n.t("canvas.nodeTypes.group"); } },
     [CanvasNodeType.Director]: { width: 300, height: 190, get title() { return i18n.t("canvas.nodeTypes.director"); } },
+    [CanvasNodeType.Shot]: { width: 300, height: 190, get title() { return i18n.t("canvas.nodeTypes.shot"); } },
 } satisfies Record<CanvasNodeType, { width: number; height: number; title: string }>;
 
 export const NODE_SPECS = {
@@ -48,6 +49,10 @@ export const NODE_SPECS = {
     [CanvasNodeType.Director]: {
         width: 300, height: 190, get title() { return NODE_DEFAULT_SIZE[CanvasNodeType.Director].title; },
         metadata: { status: "idle" },
+    },
+    [CanvasNodeType.Shot]: {
+        width: 300, height: 190, get title() { return NODE_DEFAULT_SIZE[CanvasNodeType.Shot].title; },
+        metadata: { status: "idle", qc: "pending" },
     },
 } satisfies Record<CanvasNodeType, CanvasNodeSpec>;
 

@@ -1,0 +1,121 @@
+---
+title: Canvas Director Overhaul Plan
+description: The rectification baseline built on the real Vite frontend and single-process canvas-agent architecture: director desk MCP tools, job registry, self-built Agent Host, and advanced orchestration
+---
+
+# Canvas Director Overhaul Plan
+
+This document is the formal baseline for the full Canvas Director overhaul. The directional diagnosis (Codex runtime lock-in, the private tool bridge, and the missing director desk MCP capability) was confirmed by code review; this plan lands the overhaul on the project's real architecture and supersedes the earlier draft built on Go backend / Next.js assumptions.
+
+## Factual Baseline
+
+The overhaul is grounded in facts confirmed by code review; no design may deviate from them:
+
+- There is no backend service. The frontend is Vite 7 + React 19 + TypeScript + Ant Design 6 + Zustand + localforage, with canvas projects stored in the browser; director desk scenes live in localStorage / IndexedDB.
+- `canvas-agent` is the only local Node process, acting as the internal Codex runtime (`@openai/codex` app-server), the HTTP/SSE service, and a stdio MCP Server under a dual identity; `canvas-proxy` only handles CORS and Responses protocol patches.
+- Browser–agent transport uses named SSE events (`hello / codex_state / tool_call / codex_approval / codex_approval_resolved / agent_event / agent_bootstrap / agent_log / chat_message / conversation_changed / workspace_changed / skills_changed / agent_error / ping`), not NDJSON; uplink calls are `POST /canvas/state`, `/canvas/activate`, `/canvas/result`, `/api/tools`, and `/agent/codex/*`.
+- The 33 agent tools all target the canvas, workbenches, prompts, and assets; there are zero director desk tools. The desk's in-browser extension protocol (`capabilities.get / project.get / timeline.get / export.frame / export.video / plugin.result.submit / plugin.results.list`) only covers reads and frame/video export and is unreachable by agents.
+- Reusable assets already in place: conversation-level revision optimistic locking (`CONVERSATION_STALE`), the tool confirmation gate (`confirmTools` + `isCanvasWriteTool`), Codex approval cards (`codex_approval`), `SkillStore`, context trimming (`compactCanvasState`), SSE replay after reconnect, video task resumption, and multi-tab turn isolation.
+
+## Confirmed Decisions
+
+1. Source of truth: browser localforage stays the only source of truth. Agents operate the currently open canvas through the tool bridge only; canvas-agent keeps no second copy of project data. The trade-off (no offline/background canvas edits by agents) is accepted: users are usually online when long-task results flow back to the canvas.
+2. Codex: the self-built Agent Host becomes the default runtime; Codex is demoted to an optional external MCP client (stdio access stays), not deleted outright.
+3. Layout: progressive. The chat panel can expand into a split-screen primary area and collapse; the canvas-first interaction is not overturned. Revisit the default layout after habits settle.
+4. Phase order: director desk MCP-ification → job registry and approvals → self-built Agent Host → advanced orchestration. Phase 1 runs entirely on the existing Codex runtime and depends on no runtime replacement.
+
+## Target Architecture
+
+```txt
+Browser (Vite / React / Zustand)
+  Chat panel │ Canvas viewport │ Director viewport │ Task timeline │ Approval cards
+  Source of truth: localforage (canvas) + localStorage / IndexedDB (director desk)
+        │ SSE downlink (event protocol frozen)
+        │ POST /canvas/state, /canvas/result, /api/tools, etc. uplink
+canvas-agent (single Node process, dual identity)
+  Agent reasoning layer (Phase 3: Codex SDK replaced by Vercel AI SDK + Model Profiles)
+  MCP tool surface (existing 33 + shot / stage / camera / preview + job / qc + memory)
+  Job registry (Phase 2; execution stays in the browser)
+  External endpoints: stdio MCP (existing) + HTTP (token auth to add)
+canvas-proxy (pure CORS forwarding only, after Phase 3)
+```
+
+Structural judgments: no process split, no separate Project MCP Server process, no Go / Next.js / Redis / database. The "unified tool surface" is an extension of the existing canvas-agent tool set. Phases 1 and 2 are incremental on the existing Codex runtime; the frontend chat panel event protocol does not change.
+
+## Phase 1: Director Desk and Shot MCP-ification
+
+New tools (all dispatched to the browser through the existing `tool_call` bridge):
+
+- `shot_*`: `shot_create`, `shot_link`, `shot_update`, `shot_delete`, `shot_fork`
+- `stage_*`: `stage_open`, `stage_set_environment`, `stage_place_character`, `stage_place_prop`, `stage_remove_object`
+- `camera_*`: `camera_set_keyframe`, `camera_get_trajectory`, `camera_preview`
+- `preview_*`: `preview_render_frame`, `preview_export_animatic`, `preview_export_depth`, `preview_export_normal`, `preview_export_camera_path`
+
+Implementation splits by reuse level:
+
+- (a) Minimal closed loop (directly buildable): `preview_render_frame` reuses extension protocol `export.frame` (clean frame); `preview_export_animatic` reuses `export.video` (reference video); `stage_*` / `camera_*` add write actions to the extension protocol that call existing director store mutations — no 3D rewrite; `shot_*` lands in the canvas data layer (below).
+- (b) Structure-guide exports (new 3D capability, deferred): `preview_export_depth / preview_export_normal / preview_export_camera_path` do not exist today; they require new offscreen rendering in the desk (depth material, normal material) and camera trajectory serialization. They are enhancements after (a) is verified and do not block acceptance.
+
+Shot data model (browser side):
+
+- A new `shot` canvas node type holding a director desk instance reference + a desk camera shot id + `generation` (`guide_refs`, `outputs`) and `qc` metadata. The existing `director` node is its predecessor — evolve it rather than keeping two models.
+- `sequence` is expressed as canvas grouping that maintains shot order; no server-side entity.
+- Director desk scenes gain a `shotId` back-reference linked to the canvas shot node.
+- The canvas store gains `projectRevision`; write tools carry `expectedRevision`, validated by the browser while applying ops. Conflicts return `PROJECT_STALE` plus the current revision through `/canvas/result` (reusing the `CONVERSATION_STALE` semantics). canvas-agent holds no project revision.
+
+Acceptance: with the existing external Codex (connected via `codex mcp add` to the stdio endpoint), complete "create shot → block the stage → camera move → export preview frame / animatic → trigger generation with it as reference". If external agents find the desk tools awkward, the problem is tool granularity, not the reasoning layer — the cheapest moment to adjust, which is why this phase comes first.
+
+## Phase 2: Job Registry and Approvals
+
+Execution fact: all generation runs in the browser (`services/api` calls OpenAI-compatible endpoints directly) and preview rendering is browser Three.js; canvas-agent cannot execute any generation. So this phase builds a job registry, not a Node worker pool:
+
+- canvas-agent keeps a job registry: `jobId`, state machine (`queued / active / succeeded / failed / cancelled`), `commandId` idempotency key, bound shot / node. Execution stays in the browser, which reports status over the existing bridge; SSE gains `task_progress / task_done` events.
+- Reconnection recovery: after the browser reconnects, it re-reports task identifiers from node metadata (video `videoTaskId` persistence already exists) to align the registry; remote generation itself never interrupts.
+- Generation/write separation: a successful generation only produces an artifact; writing it into the canvas / shot requires an explicit `shot_update` or canvas tool call; the same `commandId` retried never duplicates artifacts or nodes.
+- New tools: `job_status`, `job_cancel`, `job_list`, `qc_mark`, `qc_list`.
+- Approvals: the only enforcement point is the browser execution layer. Generation-class tool calls, whether from internal or external agents, always pass the confirmation gate (generation becomes a mandatory confirmation on top of `confirmTools`, honoring the existing per-task confirmation commitment for every image/video path); approval cards gain cost estimates and impact scope.
+
+## Phase 3: Self-Built Agent Host
+
+Kept (reused, protocol unchanged): `canvas/session.ts`, `server/http.ts`, `skills/store.ts`, `agent/message-metadata.ts`, and the frontend `local-agent-panel` / `agent-chat` event handling; the SSE event protocol is frozen; `SkillStore`, attachments, approval UI, replay, task resumption, and the stdio MCP endpoint.
+
+Replaced (~2,600 lines of Codex binding surface): `agent/codex-client.ts`, `codex.ts`, `codex-history.ts`, `codex-protocol.ts` → a Vercel AI SDK reasoning loop; the agent calls this process's tool surface as an MCP Client, keeping the protocol boundary.
+
+- Model configuration: in-app Model Profiles (`provider / baseURL / apiKey / model / thinkingLevel / role`), synced from the browser's `use-config-store` over the existing token-authenticated channel to avoid double configuration; local storage follows the existing mechanism, with encryption evaluated as a separate todo. Sessions record the profile in use; switching models does not affect running sessions.
+- Session storage: self-managed append-only JSONL with resume and compaction; no `~/.codex` dependency.
+- Removed: the `@openai/codex` dependency, all Responses protocol patches in canvas-proxy (pure CORS forwarding stays), and the `~/.codex/config.toml` pinned-model logic.
+- Codex is demoted to an external MCP client; the stdio path is unchanged. The HTTP MCP endpoint gains token auth; the compatibility matrix (Codex / Claude Code / ZCode / Qoder / Trae) is a release gate maintained continuously.
+
+Acceptance: users drive every tool with any OpenAI-compatible model configured in-app; the frontend chat panel needs no protocol change; `codex mcp add` still works.
+
+## Phase 4: Advanced Orchestration and Fusion UX
+
+- `memory_read / memory_save`: project-level and global scopes, local files, decisions only — never raw artifacts; keeps character and style consistency across turns.
+- Skills: use `SkillStore` to orchestrate the cross-viewport workflow "script → shot list → staging and camera → animatic → generation → QC"; brief, shot list, animatic, and video generation are approval gates.
+- Subagents: parallel shot exploration (preview, generation, QC) reusing the tool surface and approval gate; one in-progress task per shot at a time.
+- Progressive layout: the chat panel can expand into a split-screen primary area and collapse; the task timeline shows job states. Fusion interactions land one by one as needed: director thumbnails on shot cards (offscreen render + cache), shared `currentShotId / playhead / selection`, zoom-to-enter the director desk, an orthographic top view, and side-by-side `shot_fork` variants.
+
+## Tool Contract Rules
+
+1. Writes carry `expectedRevision`; conflicts return `PROJECT_STALE` + current revision.
+2. Long tasks return a `jobId` immediately and never block the reasoning loop.
+3. Generation-class tools return a cost estimate and always enter the confirmation gate.
+4. Stable `commandId`: retries never duplicate artifacts; successful generation never auto-writes to the canvas.
+5. Director desk tools are on par with canvas tools — no read-only exceptions.
+6. Tool `description`s are maintained as product copy; an "intent → expected tool and args" evaluation set regresses with every description iteration.
+
+## Risks and Countermeasures
+
+| Risk | Countermeasure |
+| --- | --- |
+| Phase 3 rewrite breaks the SSE protocol | Reuse the wrapper layer, freeze the event protocol, keep the frontend unchanged; dual-run against the Codex path first |
+| Browser-only source of truth blocks background canvas edits | Accept the trade-off; replay and task recovery already cover the online scenario |
+| Director write tools coupled to 3D rendering | New extension-protocol actions reuse existing director store mutations; rendering logic untouched |
+| Overlap between old and new tool semantics | New tools are named by creative object; overlapping legacy canvas tools converge into `shot_*` |
+| Model Profile credential safety | Sync over the local token-authenticated channel, never server-side; encryption as a separate todo |
+| External agent tool-call accuracy | Descriptions polished as product copy; the evaluation set and compatibility matrix are release gates |
+| Single-component canvas page risk | Phase 1 only adds node types and store fields; existing rendering logic untouched |
+
+## Explicitly Not Doing
+
+No Go backend; no Next.js migration; no Redis / object storage / database; no second project-data source of truth inside canvas-agent; no rewrite of canvas or director rendering; no overturning of the canvas-first layout.

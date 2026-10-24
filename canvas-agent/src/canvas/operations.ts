@@ -67,6 +67,30 @@ export function buildCanvasToolRequest(name: ToolName, input: Record<string, unk
         const data = input as { nodeId: string; mode?: string; prompt?: string };
         return applyOps([runGenerationOp(data.nodeId, generationMode(data.mode), data.prompt)]);
     }
+    if (name === "shot_create") {
+        const data = input as { title: string; sequence?: string; deskId?: string; cameraShotId?: string; notes?: string; durationSeconds?: number; x?: number; y?: number };
+        const shotId = `shot-${crypto.randomUUID()}`;
+        return applyOps([{ type: "add_node", id: shotId, nodeType: "shot", title: data.title, position: { x: data.x ?? nextCanvasX(state), y: data.y ?? 0 }, metadata: cleanRecord({ status: "success", qc: "pending", sequence: data.sequence, deskId: data.deskId, cameraShotId: data.cameraShotId, notes: data.notes, durationSeconds: data.durationSeconds }) }]);
+    }
+    if (name === "shot_update") {
+        const data = input as { shotNodeId: string; title?: string; patch?: Record<string, unknown> };
+        return applyOps([{ type: "update_node", id: data.shotNodeId, patch: data.title ? { title: data.title } : undefined, metadata: cleanRecord(data.patch || {}) }]);
+    }
+    if (name === "shot_delete") return applyOps([{ type: "delete_node", ids: (input as { shotNodeIds: string[] }).shotNodeIds }]);
+    if (name === "shot_link") {
+        const data = input as { fromShotNodeId: string; toShotNodeId: string };
+        return applyOps([{ type: "connect_nodes", fromNodeId: data.fromShotNodeId, toNodeId: data.toShotNodeId }]);
+    }
+    if (name === "shot_fork") {
+        const data = input as { shotNodeId: string; label?: string };
+        const source = findNode(state, data.shotNodeId);
+        if (!source) throw new Error(`找不到镜头节点：${data.shotNodeId}`);
+        const forkId = `shot-${crypto.randomUUID()}`;
+        return applyOps([
+            { type: "add_node", id: forkId, nodeType: "shot", title: data.label ? `${source.title}（${data.label}）` : `${source.title} 变体`, position: { x: source.position.x + (source.width || 300) + 60, y: source.position.y }, width: source.width, height: source.height, metadata: { ...(source.metadata || {}), qc: "pending" } },
+            { type: "connect_nodes", fromNodeId: data.shotNodeId, toNodeId: forkId },
+        ]);
+    }
     throw new Error(`未知工具：${name}`);
 }
 

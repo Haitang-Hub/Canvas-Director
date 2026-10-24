@@ -23,11 +23,12 @@ export type ConversationState = {
     error?: string;
 };
 type McpInventoryItem = { name: string; authStatus?: string };
-export const AGENT_PROTOCOL_VERSION = 6;
+export const AGENT_PROTOCOL_VERSION = 7;
 
 const SITE_TOOLS = new Set<ToolName>([
     "site_navigate",
     "canvas_list_projects",
+    "stage_open",
     "workbench_image_get_config",
     "workbench_image_generate",
     "workbench_video_get_config",
@@ -38,9 +39,32 @@ const SITE_TOOLS = new Set<ToolName>([
     "generation_get_status",
 ]);
 
+/** 需要路由到导演台页面客户端的工具；其余画布工具仍发给画布客户端。 */
+const DIRECTOR_TOOLS = new Set<ToolName>([
+    "stage_list_presets",
+    "stage_get_state",
+    "stage_place_character",
+    "stage_place_prop",
+    "stage_update_object",
+    "stage_add_model",
+    "stage_clear_scene",
+    "stage_remove_object",
+    "camera_set_keyframe",
+    "camera_set_pose",
+    "camera_update_keyframe",
+    "camera_delete_keyframe",
+    "camera_apply_preset",
+    "camera_set_pacing",
+    "camera_get_trajectory",
+    "preview_render_frame",
+    "preview_export_animatic",
+]);
+
 /** 管理网页画布连接、状态、附件和工具请求。 */
 export class CanvasSession {
     private clients = new Map<string, ServerResponse>();
+    private directorClients = new Map<string, { res: ServerResponse; version: number; deskId: string }>();
+    private activeDeskId = "";
     private clientFocusOrder = new Map<string, number>();
     private pending = new Map<string, PendingRequest>();
     private pendingApprovals = new Map<string, Record<string, unknown>>();
@@ -269,15 +293,24 @@ export class CanvasSession {
     openEvents(url: URL, res: ServerResponse, activeThreadId = "") {
         const clientId = url.searchParams.get("clientId") || crypto.randomUUID();
         const statusOnly = url.searchParams.get("role") === "status";
+        const role = url.searchParams.get("role") === "director" ? "director" : "canvas";
         logger.info("SSE client connected", { clientId, statusOnly });
         res.writeHead(200, { "Content-Type": "text/event-stream", "Cache-Control": "no-cache", Connection: "keep-alive" });
         if (!statusOnly) {
-            this.clients.set(clientId, res);
-            if (!this.clientFocusOrder.has(clientId)) this.clientFocusOrder.set(clientId, 0);
-            if (!this.activeClientId) {
-                this.activeClientId = clientId;
-                this.clientFocusOrder.set(clientId, ++this.focusSequence);
+            if (role === "director") {
+                const deskId = url.searchParams.get("desk") || "";
+                this.directorClients.set(clientId, { res, version: Number(url.searchParams.get("dv")) || 0, deskId });
+                if (deskId) this.activeDeskId = deskId;
             }
+            else {
+                this.clients.set(clientId, res);
+                // 只有画布客户端可成为活跃工具目标；导演台客户端只接收导演台工具路由。
+                if (!this.activeClientId) {
+                    this.activeClientId = clientId;
+                    this.clientFocusOrder.set(clientId, ++this.focusSequence);
+                }
+            }
+            if (!this.clientFocusOrder.has(clientId)) this.clientFocusOrder.set(clientId, 0);
         }
         sendEvent(res, "hello", { ok: true, protocolVersion: AGENT_PROTOCOL_VERSION, clientId, workspace: { activeThreadId }, conversation: this.conversationStateSnapshot, codex: this.codexState, pendingApprovals: this.codexPendingApprovals });
         if (!statusOnly && activeThreadId && this.codexState.threadId === activeThreadId) this.codexReplayEvents.forEach((event) => sendEvent(res, event.type, event.payload));
@@ -287,6 +320,7 @@ export class CanvasSession {
             logger.info("SSE client disconnected", { clientId, statusOnly });
             if (statusOnly || this.clients.get(clientId) !== res) return;
             this.clients.delete(clientId);
+            this.directorClients.delete(clientId);
             this.clientFocusOrder.delete(clientId);
             this.canvasStates.delete(clientId);
             this.pending.forEach((item, requestId) => {
@@ -384,6 +418,7 @@ export class CanvasSession {
     /** 向全部已连接网页广播事件。 */
     emitAll(type: string, payload: unknown) {
         this.clients.forEach((client) => sendEvent(client, type, payload));
+        this.directorClients.forEach((item) => sendEvent(item.res, type, payload));
     }
 
     /** 向全部网页广播带线程归属的事件。 */
@@ -441,13 +476,17 @@ export class CanvasSession {
         if (!isToolName(name)) throw new Error(`未知工具：${String(name)}`);
         logger.info("MCP tool called", { name, input: rawInput, targetClientId: this.targetClientId });
         const input = parseToolInput(name, rawInput) as Record<string, unknown>;
+        if (DIRECTOR_TOOLS.has(name)) return await this.requestDirectorTool(name, input);
         if (SITE_TOOLS.has(name)) {
+            // 没有画布页面时允许落到导演台页面执行（导演台桥支持 site_navigate 返回画布），其余工具会得到明确错误。
+            if (!this.clients.size && this.directorClients.size) return await this.requestDirectorTool(name, input);
             if (!this.clients.size) throw new Error("当前没有已连接网页");
             return await this.requestCanvasTool(name, input);
         }
-        const readTool = ["canvas_get_state", "canvas_get_selection", "canvas_export_snapshot"].includes(name);
+        const readTool = ["canvas_get_state", "canvas_get_selection", "canvas_export_snapshot", "shot_list"].includes(name);
         if (readTool && (!this.clients.size || !this.canvasState)) throw new Error("当前没有已连接画布");
         if (name === "canvas_get_state" || name === "canvas_export_snapshot") return compactCanvasState(this.canvasState);
+        if (name === "shot_list") return { shots: (this.canvasState?.nodes || []).filter((node) => node.type === "shot").map(compactNode) };
         if (name === "canvas_get_selection") {
             const ids = new Set(this.canvasState?.selectedNodeIds || []);
             return { nodes: (this.canvasState?.nodes || []).filter((node) => ids.has(node.id)).map(compactNode) };
@@ -487,18 +526,32 @@ export class CanvasSession {
 
     /** 向目标网页发送工具请求并等待调用结果。 */
     private async requestCanvasTool(name: ToolName, input: Record<string, unknown>) {
+        return await this.requestClientTool(this.targetClientId, name, input);
+    }
+
+    /** 向版本最新的导演台页面发送工具请求并等待调用结果；旧版本页面并存时不干扰新页面。 */
+    private async requestDirectorTool(name: ToolName, input: Record<string, unknown>) {
+        if (!this.directorClients.size) throw new Error("当前没有已连接的导演台页面：先用 stage_open 打开导演台（或在浏览器中从画布进入 3D 导演台），再调用导演台工具");
+        const latest = Math.max(...this.directorClients.values().map((item) => item.version));
+        const entry = [...this.directorClients.entries()].filter(([, item]) => item.version === latest).pop();
+        if (!entry) throw new Error("当前没有已连接的导演台页面");
+        return await this.requestClientTool(entry[0], name, input);
+    }
+
+    /** 向指定网页客户端发送工具请求并等待调用结果；预览导出（离屏渲染）实测超过 30 秒，单独放宽到 90 秒。 */
+    private async requestClientTool(clientId: string, name: ToolName, input: Record<string, unknown>) {
         const requestId = crypto.randomUUID();
-        const clientId = this.targetClientId;
-        const client = this.clients.get(clientId);
+        const client = this.clients.get(clientId) || this.directorClients.get(clientId)?.res;
         if (!client) throw new Error("当前没有已连接画布");
         sendEvent(client, "tool_call", { requestId, name, input });
         logger.debug("Canvas tool request sent", { requestId, name, input, clientId });
+        const timeoutMs = name === "preview_render_frame" || name === "preview_export_animatic" ? 90000 : 30000;
         return await new Promise((resolve, reject) => {
             const timer = setTimeout(() => {
                 this.pending.delete(requestId);
                 logger.warn("Canvas tool request timed out", { requestId, name, clientId });
                 reject(new Error("画布操作超时"));
-            }, 30000);
+            }, timeoutMs);
             this.pending.set(requestId, { clientId, resolve: (value) => (clearTimeout(timer), resolve(value)), reject: (error) => (clearTimeout(timer), reject(error)) });
         });
     }

@@ -924,6 +924,27 @@ function AutomaticPerformanceController({
   return null;
 }
 
+
+/** 等待渲染帧；页面在后台被节流时超时报错，避免导出永久挂起并卡死导出标志。 */
+function waitRenderFrame(double = false) {
+  return new Promise<void>((resolve, reject) => {
+    const timer = window.setTimeout(() => reject(new Error(BACKGROUND_RENDER_ERROR)), RENDER_FRAME_TIMEOUT_MS);
+    requestAnimationFrame(() => {
+      if (double) {
+        requestAnimationFrame(() => {
+          window.clearTimeout(timer);
+          resolve();
+        });
+        return;
+      }
+      window.clearTimeout(timer);
+      resolve();
+    });
+  });
+}
+const RENDER_FRAME_TIMEOUT_MS = 10000;
+const BACKGROUND_RENDER_ERROR = '导演台页面当前在后台无法渲染预览帧：请切换到导演台页面后重试，或在 stage_open 时使用 mode=tab 打开可见窗口再导出';
+
 export function DirectorCanvas() {
   const benchmarkMode = getPerformanceBenchmarkMode(window.location.search);
   const performanceProfile = useDirectorStore((state) => state.performanceProfile);
@@ -1167,8 +1188,8 @@ export function DirectorCanvas() {
       });
       try {
         const startedWaitingAt = performance.now();
-        while (!referenceVideoCanvasRef.current && performance.now() - startedWaitingAt < 2000) {
-          await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+        while (!referenceVideoCanvasRef.current && performance.now() - startedWaitingAt < 10000) {
+          await waitRenderFrame();
         }
         const canvas = referenceVideoCanvasRef.current;
         const mimeType = getSupportedReferenceVideoMimeType();
@@ -1197,9 +1218,9 @@ export function DirectorCanvas() {
 
         setCameraMotionPlaying(false);
         setCameraMotionProgress(0);
-        await new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve())));
+        await waitRenderFrame(true);
         recorder.start(250);
-        await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+        await waitRenderFrame();
         setCameraMotionPlaying(true);
         await new Promise<void>((resolve) => window.setTimeout(resolve, activeMotionDuration * 1000 + 120));
         setCameraMotionPlaying(false);
@@ -1248,10 +1269,10 @@ export function DirectorCanvas() {
         setCameraMotionPlaying(false);
         setCameraMotionProgress(targetProgress);
         const startedWaitingAt = performance.now();
-        while (!referenceVideoCanvasRef.current && performance.now() - startedWaitingAt < 2000) {
-          await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+        while (!referenceVideoCanvasRef.current && performance.now() - startedWaitingAt < 10000) {
+          await waitRenderFrame();
         }
-        await new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve())));
+        await waitRenderFrame(true);
         const canvas = referenceVideoCanvasRef.current;
         if (!canvas) throw new Error("当前浏览器无法导出成片帧");
         return {

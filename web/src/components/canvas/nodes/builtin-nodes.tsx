@@ -1,4 +1,4 @@
-import { FileText, Group, Image as ImageIcon, Music2, Settings2, Video, Clapperboard } from "lucide-react";
+import { FileText, Group, Image as ImageIcon, Music2, Settings2, Video, Clapperboard, Film } from "lucide-react";
 
 import i18n from "@/i18n";
 
@@ -27,6 +27,7 @@ const BUILTIN_DEFINITIONS: CanvasNodeDefinition[] = [
     { type: CanvasNodeType.Config, title: i18n.t("canvas.configNode.title"), icon: <Settings2 className={iconClass} />, minimapColor: "#60a5fa", hasSourceHandle: false },
     { type: CanvasNodeType.Group, title: i18n.t("canvas.node.group"), icon: <Group className={iconClass} />, minimapColor: "#94a3b8" },
     { type: CanvasNodeType.Director, title: i18n.t("canvas.nodeTypes.director"), icon: <Clapperboard className={iconClass} />, minimapColor: "#ec4899", hidePanel: true },
+    { type: CanvasNodeType.Shot, title: i18n.t("canvas.nodeTypes.shot"), icon: <Film className={iconClass} />, minimapColor: "#eab308", hidePanel: true },
 ].map((def) => {
     const spec = NODE_SPECS[def.type];
     return { ...def, title: spec.title, defaultSize: { width: spec.width, height: spec.height }, defaultMetadata: spec.metadata };

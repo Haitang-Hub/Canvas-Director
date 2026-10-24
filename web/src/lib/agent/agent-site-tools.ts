@@ -11,6 +11,9 @@ import { useCanvasStore } from "@/stores/canvas/use-canvas-store";
 import { useAssetStore } from "@/stores/use-asset-store";
 import { modelOptionLabel, modelOptionName, normalizeModelOptionValue, selectableModelsByCapability, useConfigStore } from "@/stores/use-config-store";
 import { useWorkbenchAgentStore } from "@/stores/use-workbench-agent-store";
+import { ensureDirectorDeskRecordForId, ensureDirectorDeskRecords, writeActiveDirectorDeskId } from "@/pages/director/editor/workspaces/directorDeskRegistry";
+import { openDirectorDeskFrame, setDirectorHostNavigate } from "@/lib/agent/director-desk-host";
+import { CanvasNodeType } from "@/types/canvas";
 
 // Execute site-level Agent tools in the browser, including canvas lists, workbench generation, prompt search, and asset operations.
 // Their data lives locally in the browser through localforage and Zustand, so this module accesses the relevant stores directly.
@@ -18,6 +21,7 @@ import { useWorkbenchAgentStore } from "@/stores/use-workbench-agent-store";
 export const SITE_TOOL_NAMES = [
     "canvas_list_projects",
     "generation_get_status",
+    "stage_open",
     "workbench_image_get_config",
     "workbench_image_generate",
     "workbench_video_get_config",
@@ -39,6 +43,7 @@ function siteText(key: string, options?: Record<string, unknown>) {
 
 export const SITE_TOOL_LABELS: Record<SiteToolName, string> = {
     get canvas_list_projects() { return siteText("canvasList"); },
+    get stage_open() { return siteText("stageOpen"); },
     get generation_get_status() { return siteText("generationStatus"); },
     get workbench_image_get_config() { return siteText("imageConfig"); },
     get workbench_image_generate() { return siteText("imageGenerate"); },
@@ -58,6 +63,8 @@ export async function runSiteTool(name: SiteToolName, input: SiteToolInput, navi
     switch (name) {
         case "canvas_list_projects":
             return listCanvasProjects(input);
+        case "stage_open":
+            return openDirectorStage(input, navigate, context.canvasSnapshot);
         case "generation_get_status":
             return getGenerationStatus(input, context.canvasSnapshot);
         case "workbench_image_get_config":
@@ -127,6 +134,34 @@ function normalizeCanvasGenerationStatus(status: unknown): GenerationStatus | nu
 function compactPrompt(prompt: unknown) {
     const value = typeof prompt === "string" ? prompt.trim() : "";
     return value ? `${value.slice(0, 200)}${value.length > 200 ? "..." : ""}` : undefined;
+}
+
+/** 解析镜头/导演台节点；默认在当前页内嵌隐藏导演台静默执行（不跳转），mode=tab 时打开可见窗口（预览导出渲染可靠）。 */
+function openDirectorStage(input: SiteToolInput, navigate: NavigateFunction, canvasSnapshot?: CanvasAgentSnapshot | null) {
+    const snapshot = canvasSnapshot;
+    if (!snapshot) throw new Error(siteText("openCanvasFirst"));
+    setDirectorHostNavigate(navigate);
+
+    const shotNode = typeof input.shotNodeId === "string" ? snapshot.nodes.find((node) => node.id === input.shotNodeId && node.type === CanvasNodeType.Shot) : undefined;
+    if (input.shotNodeId && !shotNode) throw new Error(siteText("shotNodeMissing", { id: input.shotNodeId }));
+
+    const deskId = (typeof input.deskId === "string" && input.deskId.trim()) || (shotNode?.metadata?.deskId as string | undefined) || "";
+    const directorNode = snapshot.nodes.find((node) => node.type === CanvasNodeType.Director && (!deskId || node.metadata?.directorDeskId === deskId));
+    if (!deskId && !directorNode) throw new Error(siteText("stageNoDirectorNode"));
+    const resolvedDeskId = deskId || (directorNode?.metadata?.directorDeskId as string | undefined) || "";
+    if (!resolvedDeskId) throw new Error(siteText("stageNoDirectorNode"));
+
+    ensureDirectorDeskRecordForId(ensureDirectorDeskRecords(), resolvedDeskId);
+    writeActiveDirectorDeskId(resolvedDeskId);
+
+    const fromNode = directorNode?.id || shotNode?.id || "";
+    if (input.mode === "tab") {
+        const src = `/director/editor?instanceId=${encodeURIComponent(resolvedDeskId)}&fromCanvas=${encodeURIComponent(snapshot.projectId)}${fromNode ? `&fromNode=${encodeURIComponent(fromNode)}` : ""}`;
+        window.open(src, "_blank", "noopener");
+        return { ok: true, deskId: resolvedDeskId, fromNodeId: fromNode, shotNodeId: shotNode?.id, mode: "tab", note: siteText("stageTabNote") };
+    }
+    const opened = openDirectorDeskFrame(resolvedDeskId, snapshot.projectId, fromNode);
+    return { ok: true, deskId: resolvedDeskId, fromNodeId: fromNode, shotNodeId: shotNode?.id, mode: "silent", embedded: opened.embedded, note: siteText("stageEmbeddedNote") };
 }
 
 function listCanvasProjects(input: SiteToolInput) {

@@ -123,7 +123,7 @@ export function AgentChatMessage({ item, theme, onRejectTool, onApproveTool }: {
     return (
         <div className={`flex ${isUser ? "justify-end" : "justify-start"}`}>
             <div
-                className={isUser ? "min-w-0 max-w-[82%] py-1 text-right text-sm leading-6" : "min-w-0 w-full text-left text-sm leading-6"}
+                className={isUser ? "min-w-0 max-w-[82%] py-1 text-left text-sm leading-6" : "min-w-0 w-full text-left text-sm leading-6"}
                 style={{ color }}
             >
                 {isUser ? (

@@ -1,0 +1,119 @@
+---
+title: Agent Host Upgrade Plan
+description: Design for the self-built agent reasoning core — the project will no longer depend solely on Codex; users configure any model in-app, and Codex is demoted to an optional external MCP client
+---
+
+# Agent Host Upgrade Plan
+
+This document is the detailed design for Phase 3 of the [Canvas Director Overhaul Plan](/docs/progress/canvas-director-overhaul-plan). In one sentence: **canvas-agent's reasoning core is replaced from the Codex SDK with a self-built Agent Host, so the project no longer depends solely on Codex; users configure any model in-app; Codex is demoted to an optional external MCP client with its access path unchanged.**
+
+## Current State and Coupling Inventory
+
+canvas-agent (single Node/TS process) currently plays four roles: internal Codex runtime host, HTTP/SSE service, stdio MCP Server, and Skill storage. The Codex coupling is concentrated in four files (~2,400 lines):
+
+| File | Lines | Responsibility | Disposition |
+| --- | --- | --- | --- |
+| `agent/codex-client.ts` | 900 | spawn `codex app-server`, JSON-RPC, thread/turn management, approval requests, event stream | **Replace** with Agent Loop |
+| `agent/codex.ts` | 619 | turn orchestration, Skill draft generation, model/skill listing, approval routing | **Replace**, keep the interface surface |
+| `agent/codex-history.ts` | 740 | read history from `~/.codex` session JSONL, summarize threads | **Replace** with a self-managed JSONL store |
+| `agent/codex-protocol.ts` | 158 | Codex private protocol types | **Delete** |
+| `agent/claude.ts` | 56 | one-off Claude CLI adapter (already a TODO) | Absorbed by the new core, deleted |
+
+The following assets are **fully kept, protocol unchanged**: `canvas/session.ts` (SSE sessions, bridge, reconnect replay, multi-tab isolation), `server/http.ts` (REST surface), `server/mcp.ts` (stdio MCP for external agents), `skills/store.ts` (SkillStore), `agent/message-metadata.ts`, and all event handling in the frontend `local-agent-panel` / `agent-chat`.
+
+## Target Architecture
+
+```txt
+canvas-agent (single process, unchanged)
+  ┌ Agent Host (new src/host/)
+  │   loop.ts        reasoning state machine: idle → thinking → toolCall → executing → observing → responding
+  │   model-router.ts route Model Profiles by role (default / planner / toolCaller / qc) with fallback
+  │   provider.ts    Vercel AI SDK wrapper: OpenAI-compatible as the backbone, thin Anthropic / Gemini adapters
+  │   tool-loop.ts   tool calling loop: in-process function calls into the tool surface (same schema validation and result shape)
+  │   approval.ts    approval gate: generation / destructive tools must pass the existing codex_approval event flow
+  │   session-store.ts self-managed JSONL (append-only; resume / fork / compaction)
+  │   profile-store.ts Model Profile persistence (written from the frontend over the token-authenticated channel)
+  └ Existing layers untouched: session / http / mcp / skills / message-metadata
+```
+
+**Event protocol frozen**: SSE event names and payload shapes stay the same (`hello / codex_state / tool_call / codex_approval / codex_approval_resolved / agent_event / agent_bootstrap / agent_log / chat_message / conversation_changed / workspace_changed / skills_changed / agent_error`). The Codex item structure inside `agent_event` is adapted by a host translation layer into the existing item semantics (`item.started / item.updated / item.completed`, text and thinking deltas) — the frontend notices nothing. The `codex_state` and `codex_approval` event names are kept (no frontend change) with semantics becoming "agent state / agent approval".
+
+## Module Design
+
+### 1. Agent Loop (loop.ts)
+
+A reducer state machine, no XState:
+
+```
+idle → thinking (streaming reasoning; forwards text/thinking deltas)
+     → tool_call (model emits tool calls)
+     → approval needed? → approval (emit codex_approval, await decision; decline/cancel returns to observing with the rejection injected)
+     → executing (run tools; long-task tools return a jobId immediately)
+     → observing (trim results, write back to context) → thinking…
+     → done (no more tool calls; turn ends)
+```
+
+Rules carried over from today: abort reachable at any point; before a new message terminates an old turn, recursively check pending approvals/questions; every transition can host hooks (logging, token stats, cost, event push). The `threadId / turnId / itemId` attribution semantics are unchanged (an existing AGENTS.md constraint).
+
+### 2. Model Profiles and Model Router
+
+```ts
+ModelProfile { id, name, provider: "openai-compatible" | "anthropic" | "gemini",
+               baseURL, apiKey, model, thinkingLevel?,
+               capabilities: { vision, toolCalling }, role: "default" | "planner" | "toolCaller" | "qc" }
+```
+
+- Configuration lives in the **frontend**: `use-config-store` already manages multiple channels (baseUrl/apiKey/model); after adding an "agent role" binding field, profiles sync to canvas-agent's `profile-store` over the existing token-authenticated channel — no second local configuration.
+- API key storage follows the existing channel storage mechanism; encrypted storage is a separate todo (localforage is plaintext today — no false promises).
+- The router picks a profile by role; failures are classified by 401/429/5xx and fall back to the default profile with an `agent_log` note.
+- Sessions record the profile in use; switching does not affect a running turn.
+- v1 uses the OpenAI-compatible protocol as the backbone (covering the project's existing channel scenarios and every current use of canvas-proxy); Anthropic / Gemini use ready-made AI SDK providers.
+
+### 3. Tool Calling Loop
+
+The Agent Host calls this process's 47 registered tools (33 canvas/workbench + 14 shot/director) via **in-process function calls**, through the same `toolInputSchemas` validation and `session.callTool` entry as the stdio MCP server, keeping internal and external agent behavior identical. Tool descriptions double as prompt material; when adding tools, update the tool usage guidance in the system prompt (today's `AGENT_PROMPT`).
+
+### 4. Approval Gate (approval.ts)
+
+- Triggers: generation tools (`workbench_*_generate`, `canvas_generate_*`, `canvas_run_generation`), deletion tools, batch writes (>10 ops).
+- Approval requests reuse the `codex_approval` event and the `/agent/codex/approval` endpoint (frontend approval cards and API unchanged); the payload gains `costEstimate` and an impact-scope summary (optionally displayed).
+- This honors the existing per-task confirmation commitment for every image/video generation path: that confirmation is independent of the frontend `confirmTools` toggle and enforced on the host side.
+
+### 5. Self-Managed Session Storage (session-store.ts)
+
+- Path: `~/.canvas-agent/threads/<threadId>.jsonl`, append-only.
+- The event model aligns with existing frontend message attribution (role/text/thinking/toolCall/usage/error/turn boundaries); `readThread` output stays compatible with the current `threadMessages` summary shape so history rendering is unchanged.
+- Supports: resume (rebuild from file after restart), fork (resend from a chosen turn, matching today's `resendFrom`), compaction (summarize old turns past a threshold and record a `compaction` entry). Workspace file locking follows the existing `beginCodexMutation` serialization approach.
+- Old `~/.codex` history is not migrated (the project is pre-launch with no compatibility burden; users can keep the external Codex client to view old sessions).
+
+### 6. Skills Kept
+
+SkillStore and its HTTP surface are untouched. Skills move from the "Codex skill mechanism" to host-side prompt injection: enabled skills are injected into the system prompt as markdown (aligned with today's `agent-instructions.md` injection), and skill draft generation becomes one plain LLM call.
+
+## Implementation Steps
+
+1. **Host skeleton**: loop + provider + profile-store, first wired in shadow mode (an HTTP `engine: "codex" | "host"` switch, defaulting to codex) with dual-run comparison.
+2. **Tool loop and approvals**: the host engine connects to all 47 tools and the approval gate; verify the shot/director tools end to end.
+3. **Session storage switch**: self-managed JSONL; regression on history panel / fork / reconnect replay.
+4. **Default switch and cleanup**: host becomes the default engine; delete the codex-* four files, the `@openai/codex` dependency, and `claude.ts`; canvas-proxy drops all Responses protocol patches (pure CORS forwarding stays); README / docs update model configuration guidance.
+5. **External client regression**: `codex mcp add` stdio access and Claude Code / ZCode integration cases must pass with zero changes (tool surface and protocol unchanged).
+
+Each step is an independent commit; during steps 1–3 the Codex engine stays available for rollback.
+
+## Risks and Countermeasures
+
+| Risk | Countermeasure |
+| --- | --- |
+| Rewrite breaks the SSE protocol / frontend | Freeze the event protocol + shadow dual-run comparison + do not delete the old engine before step 4 |
+| Tool-call accuracy below Codex's built-in loop | System prompt covers every `AGENT_PROMPT` instruction; build an "intent → tool and args" evaluation set and regress before switching |
+| Streaming delta semantics differ (thinking/text chunks) | The host translation layer maps AI SDK stream chunks to existing item events; unit tests cover chunk stitching and reconnect replay snapshots |
+| Approval bypass | Host and frontend confirmation gates both stay; generation tools enforced host-side |
+| Multi-model tool-calling format differences | Converge on the AI SDK's unified toolCalling abstraction; profiles without tool calling are rejected for tool roles at validation time |
+| Credential safety | Existing local storage and token-authenticated channel; encryption as a separate todo |
+
+## Acceptance Criteria
+
+- Users drive all 47 tools with any OpenAI-compatible channel configured in-app; installing or logging into Codex is never required.
+- The frontend chat panel needs zero protocol changes; history, fork, approvals, skills, and multi-tab isolation behave exactly as today.
+- `codex mcp add infinite-canvas -- npx @basketikun/canvas-agent@latest mcp` still connects and operates the canvas and director desk.
+- The `@openai/codex` dependency and canvas-proxy protocol patches are removed from the repository.

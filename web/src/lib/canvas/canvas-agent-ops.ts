@@ -2,6 +2,7 @@ import { nanoid } from "nanoid";
 
 import i18n from "@/i18n";
 import { getNodeSpec, isRegisteredNodeType } from "@/lib/canvas/node-registry";
+import { createDirectorDeskRecord, ensureDirectorDeskRecords, writeDirectorDeskRecords } from "@/pages/director/editor/workspaces/directorDeskRegistry";
 import { CanvasNodeType, type CanvasConnection, type CanvasNodeData, type CanvasNodeMetadata, type CanvasNodeTypeId, type ViewportTransform } from "@/types/canvas";
 
 export type CanvasAgentOp =
@@ -54,6 +55,13 @@ export function applyCanvasAgentOps(snapshot: CanvasAgentSnapshot, ops?: CanvasA
                 height: op.height || spec.height,
                 metadata: { ...spec.metadata, ...op.metadata },
             };
+            // Agent 建的导演台节点与手动创建一致：绑定一个真实导演台实例，保证后续 stage_open 可直达。
+            if (nodeType === CanvasNodeType.Director && !node.metadata?.directorDeskId) {
+                const records = ensureDirectorDeskRecords();
+                const record = createDirectorDeskRecord(records);
+                writeDirectorDeskRecords([...records, record]);
+                node.metadata = { ...node.metadata, directorDeskId: record.id, directorDeskName: record.name };
+            }
             nodes = [...nodes, node];
             selectedNodeIds = [node.id];
         }
@@ -73,8 +81,14 @@ export function applyCanvasAgentOps(snapshot: CanvasAgentSnapshot, ops?: CanvasA
         }
         if (op.type === "connect_nodes") {
             if (!op.fromNodeId || !op.toNodeId) return;
+            const fromNode = nodes.find((node) => node.id === op.fromNodeId);
+            const toNode = nodes.find((node) => node.id === op.toNodeId);
+            // 镜头节点只允许与镜头节点相连（shot_link 表达叙事顺序）；与生成节点等混连没有语义。
+            if (fromNode && toNode && (fromNode.type === CanvasNodeType.Shot) !== (toNode.type === CanvasNodeType.Shot)) {
+                throw new Error(i18n.t("canvas.agentOps.shotConnectForbidden"));
+            }
             const exists = connections.some((conn) => conn.fromNodeId === op.fromNodeId && conn.toNodeId === op.toNodeId);
-            const hasNodes = nodes.some((node) => node.id === op.fromNodeId) && nodes.some((node) => node.id === op.toNodeId);
+            const hasNodes = Boolean(fromNode) && Boolean(toNode);
             if (!exists && hasNodes) connections = [...connections, { id: op.id || nanoid(), fromNodeId: op.fromNodeId, toNodeId: op.toNodeId }];
         }
         if (op.type === "set_viewport" && op.viewport) viewport = op.viewport;

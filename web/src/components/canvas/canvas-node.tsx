@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ReactNode } from "react";
-import { ChevronRight, Clapperboard, Copy, Download, Group, Image as ImageIcon, Music2, Puzzle, RefreshCw, Star, Trash2, Video } from "lucide-react";
+import { ChevronRight, Clapperboard, Copy, Download, Film, Group, Image as ImageIcon, Music2, Puzzle, RefreshCw, Star, Trash2, Video } from "lucide-react";
 
 import { canvasThemes } from "@/lib/canvas-theme";
 import { formatBytes } from "@/lib/image-utils";
@@ -478,7 +478,32 @@ const nodeContentRenderers = {
     [CanvasNodeType.Audio]: AudioNodeContent,
     [CanvasNodeType.Group]: GroupNodeContent,
     [CanvasNodeType.Director]: DirectorNodeContent,
+    [CanvasNodeType.Shot]: ShotNodeContent,
 } satisfies Record<CanvasNodeType, (props: NodeContentRendererProps) => ReactNode>;
+
+function ShotNodeContent({ node, theme }: NodeContentRendererProps) {
+    const { t } = useTranslation();
+    const qcLabel = { pending: t("canvas.node.shotQcPending"), passed: t("canvas.node.shotQcPassed"), failed: t("canvas.node.shotQcFailed") }[String(node.metadata?.qc || "pending")] || "";
+
+    return (
+        <div className="pointer-events-none flex h-full w-full flex-col items-center justify-center gap-1.5 p-4 text-center">
+            <span className="grid size-11 shrink-0 place-items-center rounded-xl" style={{ background: theme.node.fill, border: `1px solid ${theme.node.stroke}`, color: "#eab308" }}>
+                <Film className="size-6" strokeWidth={1.6} />
+            </span>
+            <span className="max-w-full truncate text-sm font-semibold" style={{ color: theme.node.text }}>{node.title || t("canvas.nodeTypes.shot")}</span>
+            {node.metadata?.sequence ? (
+                <span className="max-w-full truncate text-[11px]" style={{ color: theme.node.muted }}>{String(node.metadata.sequence)}</span>
+            ) : null}
+            <span className="max-w-full truncate text-[11px]" style={{ color: theme.node.muted }}>
+                {t("canvas.node.shotQcLabel")}：{qcLabel}
+                {node.metadata?.durationSeconds ? ` · ${node.metadata.durationSeconds}s` : ""}
+            </span>
+            {node.metadata?.notes ? (
+                <span className="max-w-full truncate text-[11px]" style={{ color: theme.node.muted }}>{String(node.metadata.notes)}</span>
+            ) : null}
+        </div>
+    );
+}
 
 function DirectorNodeContent({ node, theme }: NodeContentRendererProps) {
     const { t } = useTranslation();

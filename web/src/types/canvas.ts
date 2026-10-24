@@ -17,6 +17,7 @@ export enum CanvasNodeType {
     Audio = "audio",
     Group = "group",
     Director = "director",
+    Shot = "shot",
 }
 
 // Node types are open strings: built-ins use CanvasNodeType and plugins use "<pluginId>:<name>".
