@@ -1496,7 +1496,8 @@
 
 .app-shell .top-bar-left,
 .app-shell .top-bar-center,
-.app-shell .top-bar-actions {
+.app-shell .top-bar-actions,
+.app-shell .top-bar-right {
   height: 48px;
   border: 0;
   border-radius: 16px;
@@ -2134,4 +2135,65 @@
     height: auto;
     flex-wrap: wrap;
   }
+}
+
+/* 视口坐标轴 gizmo 下移，避开悬浮顶栏（顶栏占 y=16~64） */
+.app-shell .viewport-gizmo-overlay {
+  top: 76px;
+}
+
+/* 顶栏:退出按钮 + 可双击改名的导演台名称 */
+.app-shell .top-bar-exit-button {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border: 1px solid rgb(var(--border-rgb) / 0.42);
+  border-radius: 10px;
+  background: rgb(var(--field-rgb));
+  color: rgb(var(--text-muted-rgb));
+  cursor: pointer;
+  transition: color 0.16s ease, border-color 0.16s ease, background 0.16s ease;
+}
+
+.app-shell .top-bar-exit-button:hover {
+  color: rgb(var(--text-rgb));
+  border-color: rgb(var(--accent-rgb) / 0.72);
+  background: rgb(var(--surface-hover-rgb));
+}
+
+.app-shell .director-desk-name {
+  display: inline-flex;
+  align-items: center;
+  min-height: 32px;
+  padding: 0 12px;
+  border: 1px solid rgb(var(--border-rgb) / 0.28);
+  border-radius: 10px;
+  background: rgb(var(--field-rgb) / 0.6);
+  color: rgb(var(--text-rgb));
+  font-size: 13px;
+  font-weight: 650;
+  white-space: nowrap;
+  cursor: text;
+  user-select: none;
+  transition: border-color 0.16s ease, background 0.16s ease;
+}
+
+.app-shell .director-desk-name:hover {
+  border-color: rgb(var(--accent-rgb) / 0.72);
+  background: rgb(var(--field-rgb));
+}
+
+.app-shell .director-desk-name-input {
+  width: 190px;
+  min-height: 32px;
+  padding: 0 12px;
+  border: 1px solid rgb(var(--accent-rgb) / 0.9);
+  border-radius: 10px;
+  background: rgb(var(--field-rgb));
+  color: rgb(var(--text-rgb));
+  font-size: 13px;
+  font-weight: 650;
+  font-family: inherit;
+  outline: none;
 }

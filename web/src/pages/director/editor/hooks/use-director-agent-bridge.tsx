@@ -137,7 +137,7 @@ function applyObjectPlacement(objectId: string, input: DirectorToolInput) {
     useDirectorStore.getState().updateObjectTransform(objectId, { position, rotation, scale });
 }
 
-async function runDirectorTool(name: string, input: DirectorToolInput) {
+export async function runDirectorTool(name: string, input: DirectorToolInput) {
     // 导演台页面上没有画布客户端时，site_navigate 兜底路由到这里：
     // 独立页直接导航；隐藏 iframe 中则转发给宿主页处理，保持"画布不跳转"的静默约定。
     if (name === "site_navigate") {

@@ -384,13 +384,14 @@ export function AppConfigPanel({ showDoneButton = false, initialTab = "channels"
     );
 }
 
-export function AppConfigModal() {
+export function AppConfigModal({ rootClassName }: { rootClassName?: string }) {
     const { t } = useTranslation();
     const isConfigOpen = useConfigStore((state) => state.isConfigOpen);
     const configTab = useConfigStore((state) => state.configTab);
     const setConfigDialogOpen = useConfigStore((state) => state.setConfigDialogOpen);
     return (
         <Modal
+            rootClassName={rootClassName}
             title={
                 <div>
                     <div className="text-lg font-semibold">{t("config.title")}</div>

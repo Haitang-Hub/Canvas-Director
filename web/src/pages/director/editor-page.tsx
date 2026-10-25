@@ -1,7 +1,13 @@
 import "./styles/index.css";
 import { useEffect, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import { Route, X } from "lucide-react";
+import { App, ConfigProvider } from "antd";
+import type { ThemeConfig } from "antd";
+import { ArrowLeft, Route, Settings2 } from "lucide-react";
+import { AppConfigModal } from "@/components/layout/app-config-modal";
+import { getAntThemeConfig } from "@/lib/app-theme";
+import { useConfigStore } from "@/stores/use-config-store";
+import { DirectorAgentChatPanel, DirectorAgentChatToggle } from "./editor/agent/DirectorAgentChatPanel";
 import { DirectorDeskShell } from "./app/layout/DirectorDeskShell";
 import { DirectorCanvas } from "./editor/canvas/DirectorCanvas";
 import { ViewportSensitivitySettings } from "./editor/canvas/ViewportSensitivitySettings";
@@ -13,7 +19,6 @@ import {
   postDirectorDeskMessageToHost,
   computeHasMotionTracks,
 } from "./editor/io/hostBridge";
-import { DIRECTOR_DESK_VERSION } from "./version";
 import { useDirectorStore } from "./editor/store/directorStore";
 import { DirectorAgentBridge } from "./editor/hooks/use-director-agent-bridge";
 import {
@@ -22,6 +27,7 @@ import {
   getInitialDirectorDeskId,
   touchDirectorDeskRecord,
   writeActiveDirectorDeskId,
+  writeDirectorDeskRecords,
   type DirectorDeskRecord,
 } from "./editor/workspaces/directorDeskRegistry";
 import {
@@ -62,12 +68,59 @@ function isEditableShortcutTarget(target: EventTarget | null) {
   return target.isContentEditable || ["INPUT", "TEXTAREA", "SELECT"].includes(target.tagName);
 }
 
-// 3D 导演台编辑器：全屏独立页面（不含无限画布顶部导航），URL 参数 instanceId 是导演台的唯一入口。
+// 导演台内的配置弹窗强制走深色主题，并把主色调换成导演台的主题蓝（--accent-rgb: 3 150 255），避免跟随全局浅色主题显得突兀
+const directorConfigTheme: ThemeConfig = (() => {
+  const base = getAntThemeConfig(true);
+  return {
+    ...base,
+    token: { ...base.token, colorPrimary: "#0396ff", colorInfo: "#0396ff", colorLink: "#0396ff", colorLinkHover: "#4aabff", colorLinkActive: "#0396ff", colorBgElevated: "#171717" },
+  };
+})();
+
+/** 顶栏导演台名称:双击进入编辑,回车/失焦保存,Esc 取消。 */
+function DirectorDeskNameField({ desks, activeDeskId, onChange }: { desks: DirectorDeskRecord[]; activeDeskId: string; onChange: (records: DirectorDeskRecord[]) => void }) {
+  const active = desks.find((desk) => desk.id === activeDeskId);
+  const [editing, setEditing] = useState(false);
+
+  function commit(value: string) {
+    const name = value.trim();
+    if (name && active && name !== active.name) {
+      const records = desks.map((desk) => (desk.id === active.id ? { ...desk, name, updatedAt: new Date().toISOString() } : desk));
+      writeDirectorDeskRecords(records);
+      onChange(records);
+    }
+    setEditing(false);
+  }
+
+  if (editing) {
+    return (
+      <input
+        className="director-desk-name-input"
+        aria-label="导演台名称"
+        autoFocus
+        defaultValue={active?.name || ""}
+        onBlur={(event) => commit(event.currentTarget.value)}
+        onKeyDown={(event) => {
+          if (event.key === "Enter") commit(event.currentTarget.value);
+          if (event.key === "Escape") setEditing(false);
+        }}
+      />
+    );
+  }
+  return (
+    <span className="director-desk-name" title="双击修改导演台名称" onDoubleClick={() => setEditing(true)}>
+      {active?.name || "未命名导演台"}
+    </span>
+  );
+}
+
+// 3D 导演台编辑器:全屏独立页面：全屏独立页面（不含无限画布顶部导航），URL 参数 instanceId 是导演台的唯一入口。
 export default function DirectorEditorPage() {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const benchmarkMode = getPerformanceBenchmarkMode(window.location.search);
   const urlInstanceId = searchParams.get("instanceId")?.trim() || null;
+  const fromCanvasId = searchParams.get("fromCanvas")?.trim() || null;
   const importTarget = (() => {
     const projectId = searchParams.get("fromCanvas")?.trim() || null;
     const nodeId = searchParams.get("fromNode")?.trim() || null;
@@ -162,44 +215,36 @@ export default function DirectorEditorPage() {
     };
   }, []);
 
-  function backToHome() {
-    navigate("/director");
+  // 从哪里来回哪里去：从无限画布进入时返回该画布，其余情况回导演台首页
+  function backToSource() {
+    if (fromCanvasId) navigate(`/canvas/${fromCanvasId}`);
+    else navigate("/director");
   }
 
-  function handleBack() {
-    window.history.back();
-  }
+  const openConfigDialog = useConfigStore((state) => state.openConfigDialog);
+
 
   return (
     <div className="h-dvh w-full overflow-hidden">
+      <ConfigProvider theme={directorConfigTheme}>
+        <App>
+          <AppConfigModal rootClassName="dark" />
+        </App>
+      </ConfigProvider>
       <DirectorAgentBridge />
+      <DirectorAgentChatPanel />
       <div className="director-desk-app" data-theme="dark">
         <div className="app-shell">
           <header className="top-bar">
             <div className="top-bar-left">
-              <button className="top-bar-title top-bar-home-button" type="button" onClick={backToHome}>
-                3D导演台
+              <button className="top-bar-exit-button" type="button" title="退出导演台" aria-label="退出导演台" onClick={backToSource}>
+                <ArrowLeft aria-hidden="true" size={15} />
               </button>
-              <span className="top-bar-version" aria-label={`当前版本 v${DIRECTOR_DESK_VERSION}`}>v{DIRECTOR_DESK_VERSION}</span>
-              <div className="director-desk-switcher" aria-label="导演台选择器">
-                <select
-                  className="director-desk-select"
-                  aria-label="选择导演台"
-                  value={activeDeskId}
-                  onChange={(event) => {
-                    const next = new URLSearchParams(searchParams);
-                    next.set("instanceId", event.currentTarget.value);
-                    setSearchParams(next, { replace: true });
-                  }}
-                >
-                  {directorDesks.map((desk) => (
-                    <option key={desk.id} value={desk.id}>
-                      {desk.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            </div>
+              <DirectorDeskNameField
+                desks={directorDesks}
+                activeDeskId={activeDeskId}
+                onChange={(records) => setDirectorDeskView({ records, activeDeskId })}
+              />            </div>
             <div className="top-bar-center">
               <div className="mode-toggle ui-segmented" role="group" aria-label="视角切换">
                 <button
@@ -239,11 +284,12 @@ export default function DirectorEditorPage() {
               <CanvasImportPanel importTarget={importTarget} />
               <ExportPanel />
             </div>
-            {motionStudioOpen ? null : (
-              <button className="director-close-button" type="button" title="关闭" onClick={(e) => { e.stopPropagation(); handleBack(); }}>
-                <X aria-hidden="true" size={18} strokeWidth={2} />
+            <div className="top-bar-right">
+              <DirectorAgentChatToggle />
+              <button className="top-bar-exit-button" type="button" title="模型配置" aria-label="模型配置" onClick={() => openConfigDialog(false, "channels")}>
+                <Settings2 aria-hidden="true" size={15} />
               </button>
-            )}
+            </div>
           </header>
           <DirectorDeskShell>
             <DirectorCanvas />
