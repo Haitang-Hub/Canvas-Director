@@ -1,6 +1,7 @@
 /**
- * 内置 Agent 的工具表（OpenAI function calling 形态）。
- * 与 director-mcp/src/schema/tools.js 保持对齐（双份实现，改名/改参需同步并递增协议版本）。
+ * 导演台工具表（OpenAI function calling 形态），供浏览器内置 Agent 使用。
+ * 与 director-mcp/src/schema/tools.js 及 canvas-agent 服务端 schemas.ts 保持对齐，
+ * 改名/改参需同步并递增协议版本。
  * 执行器复用 use-director-agent-bridge 的 runDirectorTool，与 SSE 桥行为完全一致。
  */
 

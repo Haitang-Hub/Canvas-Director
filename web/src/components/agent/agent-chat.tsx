@@ -32,8 +32,10 @@ export function AgentChatTimeline({
     onApprovalDecision: (approval: AgentPendingApproval, decision: "accept" | "acceptForSession" | "decline") => void;
 }) {
     const { t } = useTranslation();
-    const messages = useAgentStore((state) => state.messages);
-    const bootstrapStatus = useAgentStore((state) => state.bootstrapStatus);
+    const engine = useAgentStore((state) => state.engine);
+    const pageContext = useAgentStore((state) => state.pageContext);
+    const messages = useAgentStore((state) => (engine === "browser" ? state.browserMessages : state.messages));
+    const bootstrapStatus = useAgentStore((state) => (engine === "browser" ? null : state.bootstrapStatus));
     const mcpStartupStatuses = useAgentStore((state) => state.mcpStartupStatuses);
     const timeline = useMemo(() => groupTimelineMessages(messages), [messages]);
     const listRef = useRef<HTMLDivElement>(null);
@@ -79,6 +81,13 @@ export function AgentChatTimeline({
         <div className="relative min-h-0 flex-1">
             <div ref={listRef} className="thin-scrollbar h-full select-text overflow-y-auto" onScroll={updateScrollState}>
                 <div ref={contentRef} className="space-y-4 px-4 pt-4">
+                    {engine === "browser" && !messages.length ? (
+                        <div className="rounded-xl border px-3 py-2.5 text-xs leading-5" style={{ borderColor: theme.node.stroke, color: theme.node.muted }}>
+                            {(pageContext === "director" ? t("agent.chat.browserHintDirector") : t("agent.chat.browserHintCanvas")).split("\n").map((line, index) => (
+                                <div key={index}>{line}</div>
+                            ))}
+                        </div>
+                    ) : null}
                     {timeline.map((entry) => entry.type === "commands"
                         ? <AgentCommandGroupRow key={entry.id} items={entry.items} theme={theme} />
                         : <AgentChatMessageRow key={entry.item.id} item={entry.item} theme={theme} />)}
@@ -104,7 +113,11 @@ export function AgentChatTimeline({
 
 export function AgentTaskProgress({ theme, busy }: { theme: (typeof canvasThemes)[keyof typeof canvasThemes]; busy: boolean }) {
     const { t } = useTranslation();
-    const plan = useAgentStore((state) => busy ? currentPlanMessage(state.messages) : latestPlanMessage(state.messages));
+    const engine = useAgentStore((state) => state.engine);
+    const plan = useAgentStore((state) => {
+        if (engine !== "local") return null;
+        return busy ? currentPlanMessage(state.messages) : latestPlanMessage(state.messages);
+    });
     if (!plan) return null;
     return (
         <div className="shrink-0 px-4 pt-2">

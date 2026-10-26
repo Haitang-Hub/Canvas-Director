@@ -1,9 +1,9 @@
 /**
- * 内置 Agent 的模型调用：OpenAI 兼容 Chat Completions（非流式，带 function calling）。
+ * 浏览器内置 Agent 的模型调用：OpenAI 兼容 Chat Completions（非流式，带 function calling）。
  * 模型取自「模型配置」的 text 渠道（resolveModelRequestConfig），与图像/视频生成共用渠道配置。
  */
 
-import { buildApiUrl, resolveModelRequestConfig, useConfigStore, type AiConfig } from "@/stores/use-config-store";
+import { buildApiUrl, resolveModelRequestConfig, useConfigStore } from "@/stores/use-config-store";
 
 export type AgentLlmMessage =
     | { role: "system" | "user" | "assistant"; content: string; tool_calls?: Array<{ id: string; type: "function"; function: { name: string; arguments: string } }> }
@@ -14,18 +14,8 @@ type ChatCompletionResponse = {
     error?: { message?: string };
 };
 
-export function describeAgentModel(): string {
-    try {
-        const config = useConfigStore.getState().config;
-        const requestConfig = resolveModelRequestConfig(config, config.textModel);
-        return requestConfig.model || "未配置";
-    } catch {
-        return "未配置（先在模型配置里添加渠道）";
-    }
-}
-
 /** 校验 text 渠道可用并返回请求配置；不可用时抛出带操作提示的错误。 */
-export function resolveAgentRequestConfig(): ReturnType<typeof resolveModelRequestConfig> {
+export function resolveAgentRequestConfig() {
     const config = useConfigStore.getState().config;
     const requestConfig = resolveModelRequestConfig(config, config.textModel);
     if (!requestConfig.baseUrl.trim() || !requestConfig.apiKey.trim()) {
@@ -66,11 +56,4 @@ export function parseAgentToolArguments(rawArguments: string): Record<string, un
     } catch {
         throw new Error(`工具参数不是合法 JSON：${rawArguments.slice(0, 120)}`);
     }
-}
-
-/** 导出渠道配置读取，供面板展示当前模型名。 */
-export function agentChannelSummary(): string {
-    const config = useConfigStore.getState().config as AiConfig;
-    const channel = resolveModelRequestConfig(config, config.textModel);
-    return channel.model || "";
 }

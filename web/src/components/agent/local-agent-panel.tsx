@@ -2,7 +2,7 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } fr
 import { useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import { App, Button, Tooltip } from "antd";
 import dayjs from "dayjs";
-import { Bot, History, MessageSquare, PanelRightClose, PlugZap, Plus, Sparkles, Terminal } from "lucide-react";
+import { Bot, History, MessageSquare, PlugZap, Plus, Sparkles, Terminal, X } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
 import i18n from "@/i18n";
@@ -18,14 +18,19 @@ import { uploadImage } from "@/services/image-storage";
 import { useThemeStore } from "@/stores/use-theme-store";
 import { useAgentSkillStore } from "@/stores/use-agent-skill-store";
 import { useShallow } from "zustand/react/shallow";
-import { useAgentStore, type AgentAttachment, type AgentBootstrapStatus, type AgentCanvasContext, type AgentCanvasReference, type AgentChatItem, type AgentConversationState, type AgentModel, type AgentPendingApproval, type AgentPendingToolCall, type AgentPermissionMode, type AgentReasoningEffort, type AgentThreadSummary } from "@/stores/use-agent-store";
+import { useAgentStore, type AgentAttachment, type AgentBootstrapStatus, type AgentCanvasContext, type AgentCanvasReference, type AgentChatItem, type AgentConversationState, type AgentModel, type AgentPageContext, type AgentPanelTab, type AgentPendingApproval, type AgentPendingToolCall, type AgentPermissionMode, type AgentReasoningEffort, type AgentThreadSummary } from "@/stores/use-agent-store";
 import { type CanvasAgentOp, type CanvasAgentSnapshot } from "@/lib/canvas/canvas-agent-ops";
 import { isSiteTool, runSiteTool } from "@/lib/agent/agent-site-tools";
+import { clearBrowserConversation, sendBrowserPrompt, stopBrowserTurn } from "@/lib/agent/browser-agent-engine";
+import { flushBrowserChat, isBrowserChatProtected, loadBrowserChat } from "@/services/agent-chat-storage";
 import { setDirectorHostApplyOps } from "@/lib/agent/director-desk-host";
 import { acknowledgeCodexHistory, activateAgentClient, AgentApiError, discoverAgentConfig, fetchAgentJson, interruptCodexTurn, postCodexApproval, postState, postToolResult } from "@/services/api/canvas-agent";
 import { AgentChatTimeline, AgentTaskProgress, AgentUsageBar } from "./agent-chat";
 import { AgentChatComposer } from "./agent-chat-composer";
 import { AgentConnectView } from "./agent-connect-view";
+import { AgentTextModelSelect } from "./agent-model-select";
+import { AgentAppearanceButton } from "./agent-appearance-button";
+import { useAgentPanelShell } from "./agent-panel-shell";
 import {
     activityDeltaFallback,
     activityDetail,
@@ -135,7 +140,7 @@ export function LocalAgentPanel({ embedded, headless, autoConnect }: { embedded?
     // canvasContext is intentionally excluded because project updates it every frame during dragging and resizing.
     // The panel uses it only for ref synchronization and debounced postState calls, never during rendering.
     // Subscribing here would rerender the panel every frame and amplify the #185 crash, so it is observed imperatively below.
-    const { width, url, token, connected, enabled, prompt, attachments, sending, waiting, tokenUsage, eventLogs, threads, activeThreadId, workspacePath, loadingThreads, activeTab, confirmTools, permissionMode, models, model, reasoningEffort, activity, conversation, connectError, pendingTool, pendingApprovals } = useAgentStore(
+    const { width, url, token, connected, enabled, prompt, attachments, sending, waiting, tokenUsage, eventLogs, threads, activeThreadId, workspacePath, loadingThreads, activeTab, confirmTools, permissionMode, models, model, reasoningEffort, activity, conversation, connectError, pendingTool, pendingApprovals, engine, pageContext } = useAgentStore(
         useShallow((state) => ({
             width: state.width,
             url: state.url,
@@ -163,6 +168,8 @@ export function LocalAgentPanel({ embedded, headless, autoConnect }: { embedded?
             connectError: state.connectError,
             pendingTool: state.pendingTool,
             pendingApprovals: state.pendingApprovals,
+            engine: state.engine,
+            pageContext: state.pageContext,
         })),
     );
     const setAgentState = useAgentStore((state) => state.setAgentState);
@@ -344,6 +351,19 @@ export function LocalAgentPanel({ embedded, headless, autoConnect }: { embedded?
     useEffect(() => {
         confirmToolsRef.current = confirmTools;
     }, [confirmTools]);
+    // 内置引擎：按页面上下文载入持久化会话（进程内缓存，只读一次存储）
+    const browserChatLoadedRef = useRef<AgentPageContext | null>(null);
+    useEffect(() => {
+        if (browserChatLoadedRef.current === pageContext) return;
+        browserChatLoadedRef.current = pageContext;
+        let active = true;
+        void loadBrowserChat(pageContext).then((items) => {
+            if (active && useAgentStore.getState().pageContext === pageContext) setAgentState({ browserMessages: items });
+        });
+        return () => {
+            active = false;
+        };
+    }, [pageContext, setAgentState]);
     useEffect(() => {
         pendingToolRef.current = pendingTool;
     }, [pendingTool]);
@@ -636,7 +656,33 @@ export function LocalAgentPanel({ embedded, headless, autoConnect }: { embedded?
             document.removeEventListener("visibilitychange", activateVisible);
         };
     }, [connected, endpoint, token]);
+    // 内置引擎发送：@画布引用仍以文本形式拼进 prompt，附件不支持（需流式/大文件时用本机引擎）
+    const sendBrowserPromptFromPanel = async () => {
+        const current = useAgentStore.getState();
+        const text = promptWithCanvasReferences(current.prompt.trim(), current.canvasReferences);
+        if (!text || current.sending) return;
+        await sendBrowserPrompt(text, navigate);
+    };
+
+    const confirmClearBrowserChat = () => {
+        modal.confirm({
+            title: t("agent.chat.clearTitle"),
+            content: t(isBrowserChatProtected(pageContext) ? "agent.chat.clearProtected" : "agent.chat.clearDescription"),
+            okText: t("common.delete"),
+            okType: "danger",
+            cancelText: t("common.cancel"),
+            onOk: () => {
+                clearBrowserConversation();
+                setAgentState({ activeTab: "chat", activity: rt("newConversation") });
+            },
+        });
+    };
+
     const sendPrompt = async () => {
+        if (engine === "browser") {
+            await sendBrowserPromptFromPanel();
+            return;
+        }
         const text = prompt.trim();
         const files = attachments;
         const skillState = useAgentSkillStore.getState();
@@ -752,6 +798,10 @@ export function LocalAgentPanel({ embedded, headless, autoConnect }: { embedded?
     };
 
     const stopTurn = async () => {
+        if (engine === "browser") {
+            stopBrowserTurn();
+            return;
+        }
         if (!connected || (!sending && !waiting)) return;
         setAgentState({ activity: rt("stopping") });
         try {
@@ -1326,17 +1376,25 @@ export function LocalAgentPanel({ embedded, headless, autoConnect }: { embedded?
 
     const connectionStatus = t(connectError ? "agent.status.failed" : connected ? "agent.status.connected" : enabled ? "agent.status.connecting" : "agent.status.disconnected");
     const connectionStatusColor = connectError ? "#dc2626" : connected ? "#16a34a" : enabled ? "#d97706" : theme.node.muted;
+    const shell = useAgentPanelShell();
+    // 内置引擎没有历史/技能标签页，落在这些标签时回退到对话
+    const effectiveTab: AgentPanelTab = engine === "browser" && (activeTab === "history" || activeTab === "skills") ? "chat" : activeTab;
     const content = (
         <>
-            <AgentPanelTabs
-                value={activeTab}
+            <AgentPanelTabs<AgentPanelTab>
+                value={effectiveTab}
                 theme={theme}
                 leading={
                     <div className="flex items-center gap-1">
-                        <span className="grid size-8 place-items-center">
-                            <Bot className="size-4" />
-                        </span>
-                        <div className="hidden text-base font-semibold leading-5 @min-[560px]:block">Agent</div>
+                        <div
+                            className={`flex items-center gap-1 ${shell?.dragHandlers ? "cursor-grab active:cursor-grabbing" : ""}`}
+                            title={shell?.dragHandlers ? t("agent.panel.dragHint") : undefined}
+                            {...shell?.dragHandlers}
+                        >                            <span className="grid size-8 place-items-center">
+                                <Bot className="size-4" />
+                            </span>
+                            <div className="hidden text-base font-semibold leading-5 @min-[560px]:block">Agent</div>
+                        </div>
                         <Tooltip title={t("agent.panel.connectionSettings", { status: connectionStatus })} placement="bottom">
                             <Button size="small" type="text" className="!h-8 !w-8 !min-w-8 !px-0 @min-[560px]:!w-auto @min-[560px]:!min-w-0 @min-[560px]:!px-[7px]" aria-label={t("agent.panel.connectionSettingsLabel", { status: connectionStatus })} icon={<PlugZap className="size-3.5" style={{ color: connectionStatusColor }} />} onClick={() => setAgentState({ activeTab: "setup" })}>
                                 <span className="hidden @min-[560px]:inline">{connectionStatus}</span>
@@ -1346,31 +1404,40 @@ export function LocalAgentPanel({ embedded, headless, autoConnect }: { embedded?
                 }
                 items={[
                     { value: "chat", label: t("agent.panel.chat"), icon: <MessageSquare className="size-3.5" /> },
-                    { value: "history", label: t("agent.panel.history"), icon: <History className="size-3.5" />, count: threads.length },
-                    { value: "skills", label: t("agent.panel.skills"), icon: <Sparkles className="size-3.5" />, count: skillCount },
+                    ...(engine === "local"
+                        ? [
+                              { value: "history" as AgentPanelTab, label: t("agent.panel.history"), icon: <History className="size-3.5" />, count: threads.length },
+                              { value: "skills" as AgentPanelTab, label: t("agent.panel.skills"), icon: <Sparkles className="size-3.5" />, count: skillCount },
+                          ]
+                        : []),
                     { value: "log", label: t("agent.panel.logs"), icon: <Terminal className="size-3.5" />, count: eventLogs.length },
                 ]}
-                onChange={(activeTab) => {
-                    setAgentState({ activeTab });
-                    if (activeTab === "history") void loadThreads();
+                onChange={(tab: AgentPanelTab) => {
+                    setAgentState({ activeTab: tab });
+                    if (tab === "history") void loadThreads();
                 }}
                 right={
                     <>
-                        <Tooltip title={t("agent.history.newThread")} placement="bottom">
-                            <Button size="small" type="text" className="!h-8 !w-8 !min-w-8 !px-0 @min-[560px]:!w-auto @min-[560px]:!min-w-0 @min-[560px]:!px-[7px]" aria-label={t("agent.history.newThread")} disabled={!connected || loadingThreads || sending || waiting || conversationBusy} icon={<Plus className="size-3.5" />} onClick={startNewThread}>
-                                <span className="hidden @min-[560px]:inline">{t("agent.history.newThread")}</span>
+                        <Tooltip title={engine === "browser" ? t("agent.chat.clearTitle") : t("agent.history.newThread")} placement="bottom">
+                            <Button size="small" type="text" className="!h-8 !w-8 !min-w-8 !px-0 @min-[560px]:!w-auto @min-[560px]:!min-w-0 @min-[560px]:!px-[7px]" aria-label={engine === "browser" ? t("agent.chat.clearTitle") : t("agent.history.newThread")} disabled={engine === "browser" ? sending : !connected || loadingThreads || sending || waiting || conversationBusy} icon={<Plus className="size-3.5" />} onClick={engine === "browser" ? confirmClearBrowserChat : startNewThread}>
+                                <span className="hidden @min-[560px]:inline">{engine === "browser" ? t("agent.chat.clearTitle") : t("agent.history.newThread")}</span>
                             </Button>
                         </Tooltip>
                         <Tooltip title={t("agent.panel.collapse")}>
-                            <Button type="text" shape="circle" className="!h-8 !w-8 !min-w-8" aria-label={t("agent.panel.collapseLabel")} style={{ color: theme.node.muted }} icon={<PanelRightClose className="size-4" />} onClick={closePanel} />
+                            <Button type="text" shape="circle" className="!h-8 !w-8 !min-w-8" aria-label={t("agent.panel.collapseLabel")} style={{ color: theme.node.muted }} icon={<X className="size-4" />} onClick={closePanel} />
                         </Tooltip>
                     </>
                 }
             />
 
-            {activeTab === "setup" ? (
+            {effectiveTab === "setup" ? (
                 <AgentConnectView
                     theme={theme}
+                    engine={engine}
+                    onEngineChange={(nextEngine) => {
+                        localStorage.setItem("canvas-agent-engine", nextEngine);
+                        setAgentState({ engine: nextEngine, activeTab: "chat" });
+                    }}
                     url={url}
                     token={token}
                     enabled={enabled}
@@ -1381,9 +1448,9 @@ export function LocalAgentPanel({ embedded, headless, autoConnect }: { embedded?
                     onTokenChange={(token) => setAgentState({ token, connectError: "" })}
                     onToggleEnabled={toggleAgentConnection}
                 />
-            ) : activeTab === "skills" ? (
+            ) : effectiveTab === "skills" ? (
                 <AgentSkillsView clientId={clientIdRef.current} />
-            ) : activeTab === "history" ? (
+            ) : effectiveTab === "history" ? (
                 <AgentHistoryView
                     theme={theme}
                     threads={threads}
@@ -1397,7 +1464,7 @@ export function LocalAgentPanel({ embedded, headless, autoConnect }: { embedded?
                     onResumeThread={(threadId) => void resumeThread(threadId)}
                     onDeleteThreads={confirmDeleteThreads}
                 />
-            ) : activeTab === "log" ? (
+            ) : effectiveTab === "log" ? (
                 <AgentLogView
                     logs={eventLogs}
                     theme={theme}
@@ -1410,30 +1477,32 @@ export function LocalAgentPanel({ embedded, headless, autoConnect }: { embedded?
                 <>
                     <AgentChatTimeline theme={theme} pendingTool={pendingTool} pendingApprovals={pendingApprovals} sending={sending} waiting={waiting} onRejectTool={rejectPendingTool} onApproveTool={approvePendingTool} onApprovalDecision={decideApproval} />
                     <AgentTaskProgress theme={theme} busy={sending || waiting} />
-                    {tokenUsage ? <AgentUsageBar usage={tokenUsage} theme={theme} /> : null}
+                    {engine === "local" && tokenUsage ? <AgentUsageBar usage={tokenUsage} theme={theme} /> : null}
                     <AgentChatComposer
                         prompt={prompt}
                         attachments={attachments.map((attachment) => agentAttachmentToChatAttachment(attachment, endpoint, token))}
-                        disabled={!connected || !conversationReady || loadingThreads}
+                        disabled={engine === "browser" ? false : !connected || !conversationReady || loadingThreads}
                         sending={sending || waiting}
-                        placeholder={conversation.status === "idle" || conversation.status === "preparing"
-                            ? t("agent.panel.mcpInitializing")
-                            : conversation.status === "failed"
-                                ? t("agent.panel.initFailed")
-                                : t("agent.panel.placeholder")}
+                        placeholder={engine === "browser"
+                            ? t(pageContext === "director" ? "agent.panel.placeholderBrowserDirector" : "agent.panel.placeholderBrowserCanvas")
+                            : conversation.status === "idle" || conversation.status === "preparing"
+                                ? t("agent.panel.mcpInitializing")
+                                : conversation.status === "failed"
+                                    ? t("agent.panel.initFailed")
+                                    : t("agent.panel.placeholder")}
                         theme={theme}
                         onPromptChange={(prompt) => setAgentState({ prompt })}
                         onSubmit={sendPrompt}
                         onStop={stopTurn}
-                        onAddFiles={addAttachments}
-                        onRemoveAttachment={removeAttachment}
-                        confirmTools={confirmTools}
-                        onConfirmToolsChange={(confirmTools) => setAgentState({ confirmTools })}
-                        permissionMode={permissionMode}
-                        onPermissionModeChange={changePermissionMode}
-                        models={models}
-                        model={model}
-                        reasoningEffort={reasoningEffort}
+                        onAddFiles={engine === "browser" ? undefined : addAttachments}
+                        onRemoveAttachment={engine === "browser" ? undefined : removeAttachment}
+                        confirmTools={engine === "browser" ? undefined : confirmTools}
+                        onConfirmToolsChange={engine === "browser" ? undefined : (confirmTools) => setAgentState({ confirmTools })}
+                        permissionMode={engine === "browser" ? undefined : permissionMode}
+                        onPermissionModeChange={engine === "browser" ? undefined : changePermissionMode}
+                        models={engine === "browser" ? undefined : models}
+                        model={engine === "browser" ? undefined : model}
+                        reasoningEffort={engine === "browser" ? undefined : reasoningEffort}
                         onModelChange={(model) => {
                             const selected = models.find((item) => item.model === model);
                             if (!selected) return;
@@ -1446,8 +1515,11 @@ export function LocalAgentPanel({ embedded, headless, autoConnect }: { embedded?
                             localStorage.setItem("canvas-agent-reasoning-effort", reasoningEffort);
                             setAgentState({ reasoningEffort });
                         }}
+                        appearanceControl={<AgentAppearanceButton theme={theme} />}
                         left={
-                            attachments.length ? (
+                            engine === "browser" ? (
+                                <AgentTextModelSelect theme={theme} />
+                            ) : attachments.length ? (
                                 <span className="hidden text-[11px] @min-[660px]:inline" style={{ color: theme.node.muted }}>
                                     {formatBytes(attachmentPayloadBytes(attachments))} / 30MB
                                 </span>

@@ -30,6 +30,7 @@ export function AgentChatComposer({
     reasoningEffort,
     onModelChange,
     onReasoningEffortChange,
+    appearanceControl,
     left,
 }: {
     prompt: string;
@@ -52,6 +53,7 @@ export function AgentChatComposer({
     reasoningEffort?: AgentReasoningEffort | "";
     onModelChange?: (model: string) => void;
     onReasoningEffortChange?: (effort: AgentReasoningEffort) => void;
+    appearanceControl?: ReactNode;
     left?: ReactNode;
 }) {
     const { t } = useTranslation();
@@ -92,6 +94,7 @@ export function AgentChatComposer({
                         {onConfirmToolsChange ? <ToolConfirmationMenu confirmTools={Boolean(confirmTools)} theme={theme} onChange={onConfirmToolsChange} /> : null}
                         {permissionMode && onPermissionModeChange ? <PermissionModeMenu permissionMode={permissionMode} theme={theme} onChange={onPermissionModeChange} /> : null}
                         {models?.length && model && onModelChange && reasoningEffort !== undefined && onReasoningEffortChange ? <AgentModelControls models={models} model={model} reasoningEffort={reasoningEffort} onModelChange={onModelChange} onReasoningEffortChange={onReasoningEffortChange} /> : null}
+                        {appearanceControl}
                         {left}
                     </div>
                     <div className="flex shrink-0 items-center gap-1.5">

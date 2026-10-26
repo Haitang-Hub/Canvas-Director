@@ -38,6 +38,34 @@ export type AgentConversationState = {
     error?: string;
 };
 export type AgentPanelTab = "chat" | "setup" | "history" | "skills" | "log";
+export type AgentEngine = "local" | "browser";
+export type AgentPageContext = "canvas" | "director";
+export type AgentPanelLayout = { mode: "left" | "right" | "float"; x: number; y: number };
+
+const PANEL_LAYOUT_KEY = "canvas-agent-panel-layout-v1";
+const GLASS_OPACITY_KEY = "canvas-agent-glass-opacity";
+/** 统一面板浮动模式的固定宽度，与拖拽/吸附逻辑配套。 */
+export const AGENT_PANEL_FLOAT_WIDTH = 344;
+
+function loadPanelLayout(): AgentPanelLayout | null {
+    try {
+        const raw = localStorage.getItem(PANEL_LAYOUT_KEY);
+        if (!raw) return null;
+        const parsed = JSON.parse(raw) as Partial<AgentPanelLayout>;
+        if (parsed.mode !== "left" && parsed.mode !== "right" && parsed.mode !== "float") return null;
+        return { mode: parsed.mode, x: Number(parsed.x) || 80, y: Number(parsed.y) || 80 };
+    } catch {
+        return null;
+    }
+}
+
+export function savePanelLayout(layout: AgentPanelLayout) {
+    try {
+        localStorage.setItem(PANEL_LAYOUT_KEY, JSON.stringify(layout));
+    } catch {
+        // 存储不可用时忽略，布局只影响显示位置
+    }
+}
 
 const CONNECT_TIMEOUT_MS = 6000;
 let agentSource: EventSource | null = null;
@@ -48,6 +76,11 @@ type AgentStore = {
     panelOpen: boolean;
     panelMounted: boolean;
     panelClosing: boolean;
+    panelLayout: AgentPanelLayout | null;
+    pageContext: AgentPageContext;
+    engine: AgentEngine;
+    browserMessages: AgentChatItem[];
+    glassOpacity: number;
     canvasContext: AgentCanvasContext | null;
     url: string;
     token: string;
@@ -100,6 +133,11 @@ export const useAgentStore = create<AgentStore>((set, get) => ({
     panelOpen: false,
     panelMounted: true,
     panelClosing: false,
+    panelLayout: typeof window === "undefined" ? null : loadPanelLayout(),
+    pageContext: "canvas",
+    engine: typeof window === "undefined" ? "local" : (localStorage.getItem("canvas-agent-engine") as AgentEngine) === "browser" ? "browser" : "local",
+    browserMessages: [],
+    glassOpacity: typeof window === "undefined" ? 100 : Math.min(100, Math.max(20, Number(localStorage.getItem(GLASS_OPACITY_KEY)) || 100)),
     canvasContext: null,
     url: typeof window === "undefined" ? "http://127.0.0.1:17371" : localStorage.getItem("canvas-agent-url") || "http://127.0.0.1:17371",
     token: typeof window === "undefined" ? "" : localStorage.getItem("canvas-agent-token") || "",

@@ -3,11 +3,14 @@ import { useEffect, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { App, ConfigProvider } from "antd";
 import type { ThemeConfig } from "antd";
-import { ArrowLeft, Route, Settings2 } from "lucide-react";
+import { ArrowLeft, Bot, Route, Settings2 } from "lucide-react";
+import { AgentPanel } from "@/components/agent/agent-panel";
+import { useAgentStore } from "@/stores/use-agent-store";
 import { AppConfigModal } from "@/components/layout/app-config-modal";
 import { getAntThemeConfig } from "@/lib/app-theme";
 import { useConfigStore } from "@/stores/use-config-store";
-import { DirectorAgentChatPanel, DirectorAgentChatToggle } from "./editor/agent/DirectorAgentChatPanel";
+import { useCanvasStore } from "@/stores/canvas/use-canvas-store";
+import type { CanvasNodeData } from "@/types/canvas";
 import { DirectorDeskShell } from "./app/layout/DirectorDeskShell";
 import { DirectorCanvas } from "./editor/canvas/DirectorCanvas";
 import { ViewportSensitivitySettings } from "./editor/canvas/ViewportSensitivitySettings";
@@ -68,14 +71,63 @@ function isEditableShortcutTarget(target: EventTarget | null) {
   return target.isContentEditable || ["INPUT", "TEXTAREA", "SELECT"].includes(target.tagName);
 }
 
-// 导演台内的配置弹窗强制走深色主题，并把主色调换成导演台的主题蓝（--accent-rgb: 3 150 255），避免跟随全局浅色主题显得突兀
-const directorConfigTheme: ThemeConfig = (() => {
-  const base = getAntThemeConfig(true);
-  return {
-    ...base,
-    token: { ...base.token, colorPrimary: "#0396ff", colorInfo: "#0396ff", colorLink: "#0396ff", colorLinkHover: "#4aabff", colorLinkActive: "#0396ff", colorBgElevated: "#171717" },
-  };
-})();
+// 导演台内的配置弹窗与无限画布保持一致：因页面恒为深色，仅强制深色主题，不再替换主色调
+const directorConfigTheme: ThemeConfig = getAntThemeConfig(true);
+
+/** 导演台改名后同步来源画布：更新绑定导演台节点的标题与 directorDeskName。 */
+async function syncDeskNameToCanvas(deskId: string, name: string) {
+  const params = new URLSearchParams(window.location.search);
+  const fromCanvasId = params.get("fromCanvas")?.trim() || "";
+  const fromNodeId = params.get("fromNode")?.trim() || "";
+  const store = useCanvasStore.getState();
+  if (!store.hydrated) await useCanvasStore.persist.rehydrate();
+  const projects = useCanvasStore.getState().projects;
+  // 优先按实例 ID 绑定匹配；历史节点缺 directorDeskId 时用 fromNode 参数兜底。
+  const matchNode = (nodes: CanvasNodeData[]) =>
+    nodes.find((node) => node.metadata?.directorDeskId === deskId) ||
+    nodes.find((node) => node.id === fromNodeId && (node as { nodeType?: string }).nodeType === "director");
+  const project = fromCanvasId ? projects.find((item) => item.id === fromCanvasId && matchNode(item.nodes)) : projects.find((item) => matchNode(item.nodes));
+  const node = project ? matchNode(project.nodes) : null;
+  if (!project || !node) return;
+  const patch = { title: name, metadata: { directorDeskName: name } };
+  const host = window.self !== window.top ? window.parent : window.opener;
+  if (host) {
+    // 静默 iframe / 弹窗：宿主画布页仍在运行，走 apply-ops 让实时状态同步，直写会被宿主覆盖。
+    try {
+      await requestHostApplyOps(project.id, [{ type: "update_node", id: node.id, patch }]);
+      return;
+    } catch {
+      // 宿主不可用（已关闭等），退回直写本地 store。
+    }
+  }
+  useCanvasStore.getState().updateProject(project.id, { nodes: project.nodes.map((item) => (item.id === node.id ? { ...item, ...patch, metadata: { ...item.metadata, ...patch.metadata } } : item)) });
+}
+
+/** 把画布 ops 发给宿主页应用（与导演台产物写回同一通道）；无宿主或超时reject。 */
+function requestHostApplyOps(projectId: string, ops: unknown[]) {
+  return new Promise<void>((resolve, reject) => {
+    const target = window.self !== window.top ? window.parent : window.opener;
+    if (!target) return reject(new Error("no host"));
+    const requestId = crypto.randomUUID();
+    const cleanup = () => {
+      window.clearTimeout(timer);
+      window.removeEventListener("message", onMessage);
+    };
+    const timer = window.setTimeout(() => {
+      cleanup();
+      reject(new Error("宿主页未响应"));
+    }, 3000);
+    const onMessage = (event: MessageEvent) => {
+      if (event.origin !== window.location.origin) return;
+      const data = event.data as { type?: string; requestId?: string; error?: string } | null;
+      if (data?.type !== "canvas-agent:apply-ops-result" || data.requestId !== requestId) return;
+      cleanup();
+      data.error ? reject(new Error(data.error)) : resolve();
+    };
+    window.addEventListener("message", onMessage);
+    target.postMessage({ type: "canvas-agent:apply-ops", requestId, projectId, ops }, window.location.origin);
+  });
+}
 
 /** 顶栏导演台名称:双击进入编辑,回车/失焦保存,Esc 取消。 */
 function DirectorDeskNameField({ desks, activeDeskId, onChange }: { desks: DirectorDeskRecord[]; activeDeskId: string; onChange: (records: DirectorDeskRecord[]) => void }) {
@@ -88,6 +140,7 @@ function DirectorDeskNameField({ desks, activeDeskId, onChange }: { desks: Direc
       const records = desks.map((desk) => (desk.id === active.id ? { ...desk, name, updatedAt: new Date().toISOString() } : desk));
       writeDirectorDeskRecords(records);
       onChange(records);
+      void syncDeskNameToCanvas(active.id, name);
     }
     setEditing(false);
   }
@@ -111,6 +164,24 @@ function DirectorDeskNameField({ desks, activeDeskId, onChange }: { desks: Direc
     <span className="director-desk-name" title="双击修改导演台名称" onDoubleClick={() => setEditing(true)}>
       {active?.name || "未命名导演台"}
     </span>
+  );
+}
+
+// 顶栏「Agent」开关：统一 Agent 面板（与无限画布共用），驱动全局 useAgentStore。
+function DirectorAgentToggle() {
+  const open = useAgentStore((state) => state.panelOpen);
+  const togglePanel = useAgentStore((state) => state.togglePanel);
+  return (
+    <button
+      className={`top-bar-motion-button${open ? " is-active" : ""}`}
+      type="button"
+      aria-label={open ? "关闭 Agent" : "打开 Agent"}
+      aria-pressed={open}
+      onClick={togglePanel}
+    >
+      <Bot aria-hidden="true" size={15} />
+      Agent
+    </button>
   );
 }
 
@@ -232,7 +303,7 @@ export default function DirectorEditorPage() {
         </App>
       </ConfigProvider>
       <DirectorAgentBridge />
-      <DirectorAgentChatPanel />
+      <AgentPanel context="director" />
       <div className="director-desk-app" data-theme="dark">
         <div className="app-shell">
           <header className="top-bar">
@@ -285,7 +356,7 @@ export default function DirectorEditorPage() {
               <ExportPanel />
             </div>
             <div className="top-bar-right">
-              <DirectorAgentChatToggle />
+              <DirectorAgentToggle />
               <button className="top-bar-exit-button" type="button" title="模型配置" aria-label="模型配置" onClick={() => openConfigDialog(false, "channels")}>
                 <Settings2 aria-hidden="true" size={15} />
               </button>
