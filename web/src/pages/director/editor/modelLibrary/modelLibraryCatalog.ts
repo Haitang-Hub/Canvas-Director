@@ -68,7 +68,6 @@ function createBuiltInThumbnail(name: string, categoryId: ModelLibraryCategoryId
 const BUILTIN_LIFE_MODEL_INPUTS: Array<Omit<ModelLibraryItem, "id" | "thumbUrl" | "url">> = [
   { categoryId: "convenience", fileName: "ATM_low.fbx", name: "自动取款机" },
   { categoryId: "convenience", fileName: "trash_sorting_low.fbx", name: "分类垃圾桶" },
-  { categoryId: "home", fileName: "sofa_modern_low.fbx", name: "沙发" },
   { categoryId: "home", fileName: "dining_table_low.fbx", name: "餐桌" },
   { categoryId: "home", fileName: "refrigerator_modern_low.fbx", name: "冰箱" },
   { categoryId: "home", fileName: "washing_machine_modern_low.fbx", name: "洗衣机" },
@@ -117,7 +116,7 @@ export const MIXAMO_CHARACTER_MODELS: ModelLibraryItem[] = LOCAL_MIXAMO_CHARACTE
       kind: "character",
       categoryId: "characters",
       fileName: "camille.fbx",
-      name: "Camille（Mixamo）",
+      name: "卡米尔（Mixamo）",
       url: localMixamoAssetUrl("characters/camille.fbx"),
       characterRigProfile: "mixamo",
       characterImportReadiness: "ready",

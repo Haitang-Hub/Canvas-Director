@@ -40,7 +40,7 @@ export type AgentConversationState = {
 export type AgentPanelTab = "chat" | "setup" | "history" | "skills" | "log";
 export type AgentEngine = "local" | "browser";
 export type AgentPageContext = "canvas" | "director";
-export type AgentPanelLayout = { mode: "left" | "right" | "float"; x: number; y: number };
+export type AgentPanelLayout = { mode: "left" | "right" | "float"; x: number; y: number; width?: number; height?: number };
 
 const PANEL_LAYOUT_KEY = "canvas-agent-panel-layout-v1";
 const GLASS_OPACITY_KEY = "canvas-agent-glass-opacity";
@@ -53,7 +53,7 @@ function loadPanelLayout(): AgentPanelLayout | null {
         if (!raw) return null;
         const parsed = JSON.parse(raw) as Partial<AgentPanelLayout>;
         if (parsed.mode !== "left" && parsed.mode !== "right" && parsed.mode !== "float") return null;
-        return { mode: parsed.mode, x: Number(parsed.x) || 80, y: Number(parsed.y) || 80 };
+        return { mode: parsed.mode, x: Number(parsed.x) || 80, y: Number(parsed.y) || 80, width: Number(parsed.width) || undefined, height: Number(parsed.height) || undefined };
     } catch {
         return null;
     }
@@ -89,6 +89,8 @@ type AgentStore = {
     silentConnect: boolean;
     fragmentBootstrap: boolean;
     prompt: string;
+    /** 输入区当前打开的弹层（模型下拉 / 外观设置），互斥：打开一个时顶掉另一个。 */
+    composerPopover: "" | "model" | "appearance";
     attachments: AgentAttachment[];
     canvasReferences: CanvasResourceReference[];
     sending: boolean;
@@ -146,6 +148,7 @@ export const useAgentStore = create<AgentStore>((set, get) => ({
     silentConnect: false,
     fragmentBootstrap: false,
     prompt: "",
+    composerPopover: "",
     attachments: [],
     canvasReferences: [],
     sending: false,

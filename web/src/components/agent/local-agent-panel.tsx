@@ -78,7 +78,7 @@ const MAX_ATTACHMENT_PAYLOAD_BYTES = 28 * 1024 * 1024;
 const MESSAGE_PREVIEW_LONG_EDGE = 192;
 const MESSAGE_PREVIEW_MAX_LENGTH = 500_000;
 const DEFAULT_AGENT_URL = "http://127.0.0.1:17371";
-const AGENT_PROTOCOL_VERSION = 7;
+const AGENT_PROTOCOL_VERSION = 8;
 const HISTORY_RETRY_DELAYS_MS = [0, 150, 350, 700, 1200];
 const AGENT_REASONING_EFFORTS = new Set<AgentReasoningEffort>(["minimal", "low", "medium", "high", "xhigh", "max", "ultra"]);
 const rt = (key: string, options?: Record<string, unknown>) => i18n.t(`agent.runtime.${key}`, options);
@@ -1377,8 +1377,8 @@ export function LocalAgentPanel({ embedded, headless, autoConnect }: { embedded?
     const connectionStatus = t(connectError ? "agent.status.failed" : connected ? "agent.status.connected" : enabled ? "agent.status.connecting" : "agent.status.disconnected");
     const connectionStatusColor = connectError ? "#dc2626" : connected ? "#16a34a" : enabled ? "#d97706" : theme.node.muted;
     const shell = useAgentPanelShell();
-    // 内置引擎没有历史/技能标签页，落在这些标签时回退到对话
-    const effectiveTab: AgentPanelTab = engine === "browser" && (activeTab === "history" || activeTab === "skills") ? "chat" : activeTab;
+    // 内置引擎没有历史/技能/日志标签页，落在这些标签时回退到对话
+    const effectiveTab: AgentPanelTab = engine === "browser" && (activeTab === "history" || activeTab === "skills" || activeTab === "log") ? "chat" : activeTab;
     const content = (
         <>
             <AgentPanelTabs<AgentPanelTab>
@@ -1408,9 +1408,9 @@ export function LocalAgentPanel({ embedded, headless, autoConnect }: { embedded?
                         ? [
                               { value: "history" as AgentPanelTab, label: t("agent.panel.history"), icon: <History className="size-3.5" />, count: threads.length },
                               { value: "skills" as AgentPanelTab, label: t("agent.panel.skills"), icon: <Sparkles className="size-3.5" />, count: skillCount },
+                              { value: "log" as AgentPanelTab, label: t("agent.panel.logs"), icon: <Terminal className="size-3.5" />, count: eventLogs.length },
                           ]
                         : []),
-                    { value: "log", label: t("agent.panel.logs"), icon: <Terminal className="size-3.5" />, count: eventLogs.length },
                 ]}
                 onChange={(tab: AgentPanelTab) => {
                     setAgentState({ activeTab: tab });
@@ -1515,10 +1515,10 @@ export function LocalAgentPanel({ embedded, headless, autoConnect }: { embedded?
                             localStorage.setItem("canvas-agent-reasoning-effort", reasoningEffort);
                             setAgentState({ reasoningEffort });
                         }}
-                        appearanceControl={<AgentAppearanceButton theme={theme} />}
+                        appearanceControl={engine === "browser" ? <AgentTextModelSelect theme={theme} /> : <AgentAppearanceButton theme={theme} />}
                         left={
                             engine === "browser" ? (
-                                <AgentTextModelSelect theme={theme} />
+                                <AgentAppearanceButton theme={theme} />
                             ) : attachments.length ? (
                                 <span className="hidden text-[11px] @min-[660px]:inline" style={{ color: theme.node.muted }}>
                                     {formatBytes(attachmentPayloadBytes(attachments))} / 30MB
@@ -1604,11 +1604,12 @@ async function attachmentNodeOps(endpoint: string, token: string, clientId: stri
     if (!nodes.length) throw new Error(rt("noImageAttachments"));
     return await Promise.all(
         nodes.map(async (value) => {
-            const item = value as { id?: unknown; attachmentId?: unknown; title?: unknown; position?: unknown };
+            const item = value as { id?: unknown; attachmentId?: unknown; owner?: unknown; title?: unknown; position?: unknown };
             const id = String(item.id || "");
             const attachmentId = String(item.attachmentId || "");
             if (!id || !attachmentId) throw new Error(rt("invalidAttachmentNode"));
-            const res = await fetch(`${endpoint}/agent/attachments/${encodeURIComponent(attachmentId)}?token=${encodeURIComponent(token)}&clientId=${encodeURIComponent(clientId)}`);
+            // 附件可能由其他页面（如导演台页）上传，按服务端下发的 owner 取件。
+            const res = await fetch(`${endpoint}/agent/attachments/${encodeURIComponent(attachmentId)}?token=${encodeURIComponent(token)}&clientId=${encodeURIComponent(String(item.owner || "") || clientId)}`);
             if (!res.ok) {
                 const body = (await res.json().catch(() => null)) as { error?: string } | null;
                 throw new Error(body?.error || rt("attachmentReadFailed"));

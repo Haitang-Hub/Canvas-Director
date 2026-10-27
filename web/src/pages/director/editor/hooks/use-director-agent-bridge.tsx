@@ -17,7 +17,8 @@ import { GEOMETRY_PRIMITIVE_OPTIONS } from "../schema/directorProject";
 import { MANNEQUIN_POSE_PRESETS } from "../presets/mannequinPosePresets";
 import { CHARACTER_ACTION_PRESETS } from "../presets/characterActionPresets";
 import { CAMERA_PATH_TEMPLATES, createCameraPathTemplate } from "../motion/cameraPathTemplates";
-import { BUILTIN_LIFE_MODELS } from "../modelLibrary/modelLibraryCatalog";
+import { getModelLibraryItems, MODEL_LIBRARY_CATEGORIES } from "../modelLibrary/modelLibraryCatalog";
+import { GROUND_MATERIAL_PRESETS } from "../canvas/groundMaterialPresets";
 import { CAMERA_MOTION_PRESETS, getCameraMotionPresetPatch } from "../motion/cameraMotionPresets";
 import { useDirectorStore } from "../store/directorStore";
 import { readActiveDirectorDeskId } from "../workspaces/directorDeskRegistry";
@@ -27,6 +28,7 @@ type DirectorToolInput = {
     geometryType?: "box" | "sphere" | "cylinder" | "torus" | "cone" | "pyramid";
     objectId?: string;
     assetId?: string;
+    libraryId?: string;
     cameraId?: string;
     keyframeId?: string;
     name?: string;
@@ -38,6 +40,27 @@ type DirectorToolInput = {
     scale?: number;
     visible?: boolean;
     locked?: boolean;
+    rows?: number;
+    columns?: number;
+    spacing?: number;
+    ratio?: "auto" | "1:1" | "2:1" | "3:4" | "4:3" | "16:9" | "21:9" | "9:16";
+    backgroundColor?: string;
+    backgroundBrightness?: number;
+    panoramaYaw?: number;
+    showGrid?: boolean;
+    showGround?: boolean;
+    showLabels?: boolean;
+    snapToGrid?: boolean;
+    groundMaterialPreset?: "studio" | "concrete" | "asphalt" | "wood" | "grass";
+    groundColor?: string;
+    groundBrightness?: number;
+    groundOpacity?: number;
+    groundTextureScale?: number;
+    url?: string;
+    projectionMode?: "equirectangular" | "backdrop";
+    remove?: boolean;
+    playing?: boolean;
+    restart?: boolean;
     x?: number;
     y?: number;
     z?: number;
@@ -67,7 +90,7 @@ type DirectorToolInput = {
     returnToCanvas?: boolean;
 };
 
-const DIRECTOR_AGENT_PROTOCOL_VERSION = 7;
+const DIRECTOR_AGENT_PROTOCOL_VERSION = 8;
 /** 桥实现版本：服务端在多个导演台页面同时连接时优先路由到最新版本。 */
 const DIRECTOR_BRIDGE_VERSION = 6;
 
@@ -100,7 +123,13 @@ export function DirectorAgentBridge() {
         source.addEventListener("hello", (event) => {
             const hello = parseData(event);
             if (!hello || disposed) return;
-            if (Number(hello.protocolVersion) !== DIRECTOR_AGENT_PROTOCOL_VERSION) source.close();
+            if (Number(hello.protocolVersion) !== DIRECTOR_AGENT_PROTOCOL_VERSION) {
+                source.close();
+                return;
+            }
+            // SSE 断线（如 canvas-agent 重启）会自动重连并再次收到 hello，必须重新上报就绪，
+            // 否则服务端会留下永远未就绪的客户端，所有导演台工具都会等待超时。
+            reportReady();
         });
         source.addEventListener("tool_call", (event) => {
             const payload = parseData(event) as { requestId?: string; name?: string; input?: DirectorToolInput } | null;
@@ -156,27 +185,37 @@ export async function runDirectorTool(name: string, input: DirectorToolInput) {
             const project = store.project;
             return {
                 deskId: readActiveDirectorDeskId() || "",
-                objects: project.objects.map((object) => ({ id: object.id, name: object.name, kind: object.kind, visible: object.visible, geometryType: object.geometryType ?? null, position: object.transform.position })),
-                cameras: project.cameras.map((camera) => ({ id: camera.id, name: camera.name, fov: camera.fov, keyframeCount: getCameraMotionPath(camera).keyframes.length })),
+                objects: project.objects.map((object) => ({ id: object.id, name: object.name, kind: object.kind, visible: object.visible, locked: object.locked, geometryType: object.geometryType ?? null, position: object.transform.position, rotationY: Math.round((object.transform.rotation[1] * 180) / Math.PI), scale: object.transform.scale[0], color: object.color ?? null, linkedCameraId: object.linkedCameraId ?? null })),
+                cameras: project.cameras.map((camera) => ({ id: camera.id, name: camera.name, fov: camera.fov, position: camera.transform.position, target: camera.target, keyframeCount: getCameraMotionPath(camera).keyframes.length })),
                 activeCameraId: project.activeCameraId,
+                scene: { backgroundColor: project.scene.backgroundColor, backgroundBrightness: project.scene.backgroundBrightness, showGrid: project.scene.showGrid, showGround: project.scene.showGround, showLabels: project.scene.showLabels, snapToGrid: project.scene.snapToGrid, groundMaterialPreset: project.scene.groundMaterialPreset, groundColor: project.scene.groundColor, panoramaAssetId: project.panoramaAssetId ?? null },
+                viewport: { aspectRatio: store.viewportAspectRatio, viewMode: store.viewMode },
             };
         }
         case "stage_add_model": {
-            // 从模型库放置模型：按 assetId/name 匹配内置模型库条目，注册资产并创建场景对象。
+            // 从模型库放置模型：libraryId 精确匹配全库（内置白模 + 素材道具 + 库内人物 + 本地导入），
+            // assetId 匹配已导入项目资产，name 兜底模糊匹配；命中后注册资产并创建场景对象。
             const project = useDirectorStore.getState().project;
             const known = new Map((project.assets || []).filter((asset) => asset.sourceType === "model" && asset.kind !== "panorama").map((asset) => [asset.id, asset]));
-            const wanted = input.assetId || input.name || "";
-            const libraryItem = BUILTIN_LIFE_MODELS.find((item) => item.id === wanted || item.name === wanted || item.name.includes(wanted) || wanted.includes(item.name));
-            if (!libraryItem && !known.has(wanted)) throw new Error(`模型库中找不到模型：${wanted}，用 stage_list_presets 查询 library`);
-            let objectId: string | null = null;
+            const wanted = input.libraryId || input.assetId || input.name || "";
+            if (!wanted) throw new Error("缺少 libraryId/assetId/name，用 stage_list_models 查询模型库");
+            const libraryItem = getModelLibraryItems().find((item) => item.id === wanted)
+                ?? (!input.libraryId && !input.assetId
+                    ? getModelLibraryItems().find((item) => item.name === wanted || item.name.includes(wanted) || wanted.includes(item.name))
+                    : undefined);
+            if (!libraryItem && !known.has(wanted)) throw new Error(`模型库中找不到模型：${wanted}，用 stage_list_models 查询 libraryId`);
+            let objectId: string | null;
             if (libraryItem && !known.has(libraryItem.id)) {
                 store.addImportedAsset({
-                    kind: (libraryItem as { kind?: string }).kind ?? "prop",
+                    kind: libraryItem.kind ?? "prop",
                     assetSource: "library",
                     fileName: libraryItem.fileName,
                     name: libraryItem.name,
                     url: libraryItem.url,
                     modelFormat: libraryItem.fileName.toLowerCase().endsWith(".glb") ? "glb" : libraryItem.fileName.toLowerCase().endsWith(".fbx") ? "fbx" : undefined,
+                    characterRigProfile: libraryItem.characterRigProfile,
+                    characterImportReadiness: libraryItem.characterImportReadiness,
+                    characterOrientationCorrection: libraryItem.characterOrientationCorrection,
                 });
                 objectId = useDirectorStore.getState().selectedObjectId;
             } else {
@@ -184,8 +223,8 @@ export async function runDirectorTool(name: string, input: DirectorToolInput) {
             }
             if (!objectId) throw new Error(`添加模型失败：${wanted}`);
             applyObjectPlacement(objectId, input);
-            if (input.name) store.updateObjectName(objectId, input.name);
-            return { objectId, assetId: libraryItem?.id || wanted, name: input.name || libraryItem?.name };
+            if (input.name && input.name !== libraryItem?.name) store.updateObjectName(objectId, input.name);
+            return { objectId, libraryId: libraryItem?.id || wanted, name: input.name || libraryItem?.name };
         }
         case "stage_clear_scene": {
             // 清空场景：删除全部角色与道具；keepCameras 默认 true 时机位对象一并保留。
@@ -213,9 +252,53 @@ export async function runDirectorTool(name: string, input: DirectorToolInput) {
                 cameraBodyParts: DIRECTOR_CAMERA_TARGET_BODY_PART_OPTIONS.map((option) => ({ id: option.value, label: option.label })),
             };
         }
+        case "stage_list_models": {
+            // 全库清单：模型库目录条目 + 「我的模型」本地导入资产；libraryId 是精准放置的唯一凭据。
+            const items = [
+                ...getModelLibraryItems().map((item) => ({ libraryId: item.id, name: item.name, category: item.categoryId, kind: item.kind ?? "prop", characterReadiness: item.characterImportReadiness ?? null })),
+                ...useDirectorStore.getState().project.assets
+                    .filter((asset) => asset.sourceType === "model" && asset.assetSource === "local")
+                    .map((asset) => ({ libraryId: asset.id, name: asset.name ?? asset.fileName, category: "my-models", kind: asset.kind === "character" ? "character" : "prop", characterReadiness: null })),
+            ];
+            const keyword = (input.keyword || "").trim().toLowerCase();
+            const filtered = items.filter((item) =>
+                (!input.category || item.category === input.category)
+                && (!input.kind || item.kind === input.kind)
+                && (!keyword || item.name.toLowerCase().includes(keyword)));
+            return {
+                categories: MODEL_LIBRARY_CATEGORIES.map((category) => ({ id: category.id, label: category.label })),
+                total: filtered.length,
+                items: filtered,
+            };
+        }
         case "stage_place_character": {
-            store.addPresetCharacter((input.bodyType || undefined) as Parameters<typeof store.addPresetCharacter>[0]);
-            const objectId = useDirectorStore.getState().selectedObjectId;
+            let objectId: string | null = null;
+            if (input.libraryId) {
+                const known = useDirectorStore.getState().project.assets.find((asset) => asset.id === input.libraryId && asset.sourceType === "model" && asset.kind !== "panorama");
+                if (known) {
+                    objectId = store.addObjectFromAsset(known.id);
+                    if (!objectId) throw new Error(`放置角色失败：${input.libraryId}`);
+                } else {
+                    const libraryItem = getModelLibraryItems().find((item) => item.id === input.libraryId);
+                    if (!libraryItem) throw new Error(`模型库中找不到人物：${input.libraryId}，用 stage_list_models 查询`);
+                    if (libraryItem.kind !== "character") throw new Error(`${libraryItem.name} 不是人物（kind=${libraryItem.kind}），请用 stage_add_model 放置`);
+                    store.addImportedAsset({
+                        kind: "character",
+                        assetSource: "library",
+                        fileName: libraryItem.fileName,
+                        name: input.name || libraryItem.name,
+                        url: libraryItem.url,
+                        modelFormat: libraryItem.fileName.toLowerCase().endsWith(".glb") ? "glb" : libraryItem.fileName.toLowerCase().endsWith(".fbx") ? "fbx" : undefined,
+                        characterRigProfile: libraryItem.characterRigProfile,
+                        characterImportReadiness: libraryItem.characterImportReadiness,
+                        characterOrientationCorrection: libraryItem.characterOrientationCorrection,
+                    });
+                    objectId = useDirectorStore.getState().selectedObjectId;
+                }
+            } else {
+                store.addPresetCharacter((input.bodyType || undefined) as Parameters<typeof store.addPresetCharacter>[0]);
+                objectId = useDirectorStore.getState().selectedObjectId;
+            }
             if (!objectId) throw new Error("放置角色失败");
             applyObjectPlacement(objectId, input);
             if (input.pose) {
@@ -223,7 +306,35 @@ export async function runDirectorTool(name: string, input: DirectorToolInput) {
                 store.applyPosePreset(objectId, input.pose as Parameters<typeof store.applyPosePreset>[1]);
             }
             if (input.name) store.updateObjectName(objectId, input.name);
-            return { objectId };
+            return input.libraryId ? { objectId, libraryId: input.libraryId } : { objectId };
+        }
+        case "stage_add_crowd": {
+            const clampInt = (value: number, min: number, max: number) => Math.min(max, Math.max(min, Math.round(value)));
+            const objectIds = store.addCrowdCharacters({
+                bodyType: (input.bodyType || undefined) as Parameters<typeof store.addPresetCharacter>[0],
+                rows: input.rows === undefined ? 3 : clampInt(input.rows, 1, 12),
+                columns: input.columns === undefined ? 3 : clampInt(input.columns, 1, 12),
+                spacing: input.spacing === undefined ? 1.2 : Math.min(10, Math.max(0.1, input.spacing)),
+            });
+            return { objectIds, count: objectIds.length };
+        }
+        case "stage_duplicate_object": {
+            if (!input.objectId) throw new Error("缺少 objectId");
+            const before = new Set(useDirectorStore.getState().project.objects.map((item) => item.id));
+            store.duplicateObject(input.objectId);
+            const created = useDirectorStore.getState().project.objects.find((item) => !before.has(item.id));
+            if (!created) throw new Error(`复制失败，找不到对象：${input.objectId}`);
+            return { objectId: created.id, name: created.name };
+        }
+        case "stage_select_object": {
+            if (!input.objectId) throw new Error("缺少 objectId");
+            if (!useDirectorStore.getState().project.objects.some((item) => item.id === input.objectId)) throw new Error(`找不到对象：${input.objectId}`);
+            store.selectObject(input.objectId);
+            return { objectId: input.objectId, selected: true };
+        }
+        case "stage_undo": {
+            store.undo();
+            return { ok: true };
         }
         case "stage_place_prop": {
             if (!input.geometryType) throw new Error("缺少 geometryType");
@@ -261,7 +372,7 @@ export async function runDirectorTool(name: string, input: DirectorToolInput) {
             return { ok: true };
         }
         case "camera_set_keyframe": {
-            // 在指定机位（缺省为活动机位）的运动路径上追加一个关键帧；需要新建机位时用 stage_place_prop 的 camera 语义或手动创建。
+            // 在指定机位（缺省为活动机位）的运动路径上追加一个关键帧；需要新建机位时用 camera_add。
             const project = useDirectorStore.getState().project;
             const cameraId = input.cameraId || project.activeCameraId || project.cameras[0]?.id || "";
             if (!cameraId) throw new Error("导演台没有任何机位，无法添加关键帧");
@@ -270,6 +381,31 @@ export async function runDirectorTool(name: string, input: DirectorToolInput) {
             if (input.time !== undefined) store.updateCameraMotionKeyframe(cameraId, keyframeId, { time: input.time });
             const path = getCameraMotionPath(useDirectorStore.getState().project.cameras.find((camera) => camera.id === cameraId)!);
             return { cameraId, keyframeId, keyframeCount: path.keyframes.length };
+        }
+        case "camera_add": {
+            const cameraId = store.addCameraShot();
+            if (!cameraId) throw new Error("创建机位失败");
+            if (input.name) {
+                store.updateCamera(cameraId, { name: input.name });
+                const cameraObject = useDirectorStore.getState().project.objects.find((item) => item.kind === "camera" && item.linkedCameraId === cameraId);
+                if (cameraObject) store.updateObjectName(cameraObject.id, input.name);
+            }
+            return { cameraId, name: input.name || useDirectorStore.getState().project.cameras.find((item) => item.id === cameraId)?.name || "" };
+        }
+        case "camera_set_active": {
+            if (!input.cameraId) throw new Error("缺少 cameraId");
+            if (!useDirectorStore.getState().project.cameras.some((item) => item.id === input.cameraId)) throw new Error(`找不到机位：${input.cameraId}`);
+            store.setActiveCamera(input.cameraId);
+            return { cameraId: input.cameraId, active: true };
+        }
+        case "camera_remove": {
+            if (!input.cameraId) throw new Error("缺少 cameraId");
+            const state = useDirectorStore.getState();
+            if (!state.project.cameras.some((item) => item.id === input.cameraId)) throw new Error(`找不到机位：${input.cameraId}`);
+            const cameraObject = state.project.objects.find((item) => item.kind === "camera" && item.linkedCameraId === input.cameraId);
+            if (!cameraObject) throw new Error(`机位 ${input.cameraId} 缺少场景对象，无法删除`);
+            store.deleteObject(cameraObject.id);
+            return { ok: true, cameraId: input.cameraId };
         }
         case "camera_update_keyframe": {
             if (!input.cameraId || !input.keyframeId) throw new Error("缺少 cameraId 或 keyframeId");
@@ -372,6 +508,50 @@ export async function runDirectorTool(name: string, input: DirectorToolInput) {
                 cameras: project.cameras.map((camera) => ({ id: camera.id, name: camera.name, fov: camera.fov, path: getCameraMotionPath(camera) })),
             };
         }
+        case "viewport_set_aspect_ratio": {
+            if (!input.ratio) throw new Error("缺少 ratio，可选 auto/1:1/2:1/3:4/4:3/16:9/21:9/9:16");
+            store.setViewportAspectRatio(input.ratio);
+            return { aspectRatio: input.ratio };
+        }
+        case "scene_update": {
+            const sceneKeys = ["backgroundColor", "backgroundBrightness", "panoramaYaw", "showGrid", "showGround", "showLabels", "snapToGrid", "groundColor", "groundBrightness", "groundOpacity", "groundTextureScale"] as const;
+            const patch: Record<string, unknown> = {};
+            sceneKeys.forEach((key) => {
+                if (input[key] !== undefined) patch[key] = input[key];
+            });
+            if (input.groundMaterialPreset !== undefined) {
+                if (!GROUND_MATERIAL_PRESETS.some((preset) => preset.id === input.groundMaterialPreset)) {
+                    throw new Error(`未知地面材质：${input.groundMaterialPreset}，可选 ${GROUND_MATERIAL_PRESETS.map((preset) => preset.id).join("/")}`);
+                }
+                patch.groundMaterialPreset = input.groundMaterialPreset;
+            }
+            if (!Object.keys(patch).length) throw new Error("没有需要修改的场景字段");
+            store.updateScene(patch as Parameters<typeof store.updateScene>[0]);
+            const scene = useDirectorStore.getState().project.scene;
+            return { applied: Object.keys(patch), scene: { backgroundColor: scene.backgroundColor, groundMaterialPreset: scene.groundMaterialPreset, showGrid: scene.showGrid, showGround: scene.showGround } };
+        }
+        case "scene_set_panorama": {
+            if (input.remove) {
+                store.removePanoramaAsset();
+                return { removed: true };
+            }
+            if (!input.url) throw new Error("缺少 url（全景图地址），或传 remove=true 移除当前全景");
+            const projectionMode = input.projectionMode || "equirectangular";
+            store.setPanoramaAsset({
+                fileName: input.name || `panorama-${Date.now()}.png`,
+                name: input.name || "全景背景",
+                url: input.url,
+                projectionMode,
+            });
+            return { panoramaAssetId: useDirectorStore.getState().project.panoramaAssetId ?? null, projectionMode };
+        }
+        case "preview_playback": {
+            if (input.restart) store.restartCameraMotionPlayback();
+            else if (input.progress !== undefined) store.setCameraMotionProgress(Math.min(1, Math.max(0, input.progress)));
+            if (input.playing !== undefined) store.setCameraMotionPlaying(input.playing);
+            const state = useDirectorStore.getState();
+            return { playing: state.cameraMotionPlaying, progress: state.cameraMotionProgress };
+        }
         case "preview_render_frame": {
             const result = await requestCleanFrameExport({
                 fileName: `director-frame-${Date.now()}.png`,
@@ -452,6 +632,15 @@ function requestHostApplyOps(projectId: string, ops: unknown[]): Promise<{ canva
         window.addEventListener("message", onMessage);
         target.postMessage({ type: "canvas-agent:apply-ops", requestId, projectId, ops }, window.location.origin);
     });
+}
+
+/** 内置引擎在导演台页直接改画布：解析来源画布后经宿主页应用 ops（与产物写回同一通道，保持画布页 React 状态/撤销一致）。 */
+export async function applyCanvasOpsFromDirector(ops: unknown[]) {
+    const safeOps = Array.isArray(ops) ? ops.filter((op) => (op as { type?: string })?.type) : [];
+    if (!safeOps.length) throw new Error("缺少有效的画布 ops");
+    const target = await readImportTarget();
+    if (!target) throw new Error("写回画布失败：找不到来源画布或导演台节点，请从画布的导演台节点重新打开导演台");
+    return await requestHostApplyOps(target.projectId, safeOps);
 }
 
 /** 构造产物节点（放在导演台节点右侧并连线）；content 由宿主按 storageKey 重解析。 */

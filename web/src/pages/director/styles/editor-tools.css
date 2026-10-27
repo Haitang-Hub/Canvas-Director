@@ -3,7 +3,7 @@
   left: 50%;
   bottom: calc(100% + 10px);
   z-index: 35;
-  width: min(500px, calc(100vw - 40px));
+  width: min(640px, calc(100vw - 40px));
   height: 360px;
   border: 1px solid rgb(var(--border-rgb) / 0.35);
   border-radius: 12px;
@@ -47,15 +47,14 @@
 }
 
 .model-library-tabs {
-  display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
-  align-items: end;
+  display: flex;
   height: 40px;
   border-bottom: 1px solid rgb(var(--border-rgb) / 0.24);
 }
 
 .model-library-tab {
   position: relative;
+  flex: 1 1 0;
   height: 40px;
   border: 0;
   padding: 0;
@@ -85,7 +84,7 @@
 
 .model-library-grid {
   display: grid;
-  grid-template-columns: repeat(6, 66px);
+  grid-template-columns: repeat(8, 66px);
   grid-auto-rows: max-content;
   align-content: start;
   column-gap: 10px;

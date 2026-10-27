@@ -50,7 +50,7 @@
     {
       "id": "guo-prop-0008",
       "propNumber": 8,
-      "label": "Baseball Bat",
+      "label": "棒球棍",
       "categoryId": "melee",
       "categoryLabel": "冷兵器",
       "modelUrl": "/guo-3d-assets/guo-mounted-props-200/models/0008_baseball-bat.fbx",
@@ -67,7 +67,7 @@
     {
       "id": "guo-prop-0009",
       "propNumber": 9,
-      "label": "Kunai",
+      "label": "苦无",
       "categoryId": "melee",
       "categoryLabel": "冷兵器",
       "modelUrl": "/guo-3d-assets/guo-mounted-props-200/models/0009_kunai.fbx",
@@ -84,7 +84,7 @@
     {
       "id": "guo-prop-0010",
       "propNumber": 10,
-      "label": "Katana",
+      "label": "武士刀",
       "categoryId": "melee",
       "categoryLabel": "冷兵器",
       "modelUrl": "/guo-3d-assets/guo-mounted-props-200/models/0010_katana.fbx",
@@ -101,7 +101,7 @@
     {
       "id": "guo-prop-0012",
       "propNumber": 12,
-      "label": "Scythe",
+      "label": "镰刀",
       "categoryId": "melee",
       "categoryLabel": "冷兵器",
       "modelUrl": "/guo-3d-assets/guo-mounted-props-200/models/0012_scythe.fbx",
@@ -118,7 +118,7 @@
     {
       "id": "guo-prop-0016",
       "propNumber": 16,
-      "label": "Barrel",
+      "label": "木桶",
       "categoryId": "environment",
       "categoryLabel": "场景环境",
       "modelUrl": "/guo-3d-assets/guo-mounted-props-200/models/0016_barrel.fbx",
@@ -135,7 +135,7 @@
     {
       "id": "guo-prop-0017",
       "propNumber": 17,
-      "label": "Cauldron",
+      "label": "大铁锅",
       "categoryId": "environment",
       "categoryLabel": "场景环境",
       "modelUrl": "/guo-3d-assets/guo-mounted-props-200/models/0017_cauldron.fbx",
@@ -152,7 +152,7 @@
     {
       "id": "guo-prop-0022",
       "propNumber": 22,
-      "label": "Old Helmet",
+      "label": "旧头盔",
       "categoryId": "accessory",
       "categoryLabel": "随身配件",
       "modelUrl": "/guo-3d-assets/guo-mounted-props-200/models/0022_old-helmet.fbx",
@@ -169,7 +169,7 @@
     {
       "id": "guo-prop-0024",
       "propNumber": 24,
-      "label": "Kama",
+      "label": "手镰",
       "categoryId": "melee",
       "categoryLabel": "冷兵器",
       "modelUrl": "/guo-3d-assets/guo-mounted-props-200/models/0024_kama.fbx",
@@ -186,7 +186,7 @@
     {
       "id": "guo-prop-0025",
       "propNumber": 25,
-      "label": "Chain",
+      "label": "锁链",
       "categoryId": "melee",
       "categoryLabel": "冷兵器",
       "modelUrl": "/guo-3d-assets/guo-mounted-props-200/models/0025_chain.fbx",
@@ -203,7 +203,7 @@
     {
       "id": "guo-prop-0026",
       "propNumber": 26,
-      "label": "Small Table",
+      "label": "小桌",
       "categoryId": "furniture",
       "categoryLabel": "家具",
       "modelUrl": "/guo-3d-assets/guo-mounted-props-200/models/0026_small-table.fbx",
@@ -220,7 +220,7 @@
     {
       "id": "guo-prop-0027",
       "propNumber": 27,
-      "label": "Short Couch",
+      "label": "短沙发",
       "categoryId": "furniture",
       "categoryLabel": "家具",
       "modelUrl": "/guo-3d-assets/guo-mounted-props-200/models/0027_short-couch.fbx",
@@ -237,7 +237,7 @@
     {
       "id": "guo-prop-0028",
       "propNumber": 28,
-      "label": "Pillow",
+      "label": "抱枕",
       "categoryId": "furniture",
       "categoryLabel": "家具",
       "modelUrl": "/guo-3d-assets/guo-mounted-props-200/models/0028_pillow.fbx",
@@ -254,7 +254,7 @@
     {
       "id": "guo-prop-0029",
       "propNumber": 29,
-      "label": "Revolver",
+      "label": "左轮手枪",
       "categoryId": "firearms",
       "categoryLabel": "枪械",
       "modelUrl": "/guo-3d-assets/guo-mounted-props-200/models/0029_revolver.fbx",
@@ -271,7 +271,7 @@
     {
       "id": "guo-prop-0030",
       "propNumber": 30,
-      "label": "AK47",
+      "label": "AK47步枪",
       "categoryId": "firearms",
       "categoryLabel": "枪械",
       "modelUrl": "/guo-3d-assets/guo-mounted-props-200/models/0030_ak47.fbx",
@@ -288,7 +288,7 @@
     {
       "id": "guo-prop-0033",
       "propNumber": 33,
-      "label": "BS1 Tishina",
+      "label": "BS1微声步枪",
       "categoryId": "firearms",
       "categoryLabel": "枪械",
       "modelUrl": "/guo-3d-assets/guo-mounted-props-200/models/0033_bs1-tishina.fbx",
@@ -305,7 +305,7 @@
     {
       "id": "guo-prop-0035",
       "propNumber": 35,
-      "label": "Crossbow",
+      "label": "十字弩",
       "categoryId": "firearms",
       "categoryLabel": "枪械",
       "modelUrl": "/guo-3d-assets/guo-mounted-props-200/models/0035_crossbow.fbx",
@@ -322,7 +322,7 @@
     {
       "id": "guo-prop-0043",
       "propNumber": 43,
-      "label": "Grenade Launcher M20",
+      "label": "M20榴弹发射器",
       "categoryId": "firearms",
       "categoryLabel": "枪械",
       "modelUrl": "/guo-3d-assets/guo-mounted-props-200/models/0043_grenade-launcher-m20.fbx",
@@ -339,7 +339,7 @@
     {
       "id": "guo-prop-0044",
       "propNumber": 44,
-      "label": "M16",
+      "label": "M16步枪",
       "categoryId": "firearms",
       "categoryLabel": "枪械",
       "modelUrl": "/guo-3d-assets/guo-mounted-props-200/models/0044_m16.fbx",
@@ -356,7 +356,7 @@
     {
       "id": "guo-prop-0048",
       "propNumber": 48,
-      "label": "Mini Uzi",
+      "label": "迷你乌兹冲锋枪",
       "categoryId": "firearms",
       "categoryLabel": "枪械",
       "modelUrl": "/guo-3d-assets/guo-mounted-props-200/models/0048_mini-uzi.fbx",
@@ -373,7 +373,7 @@
     {
       "id": "guo-prop-0058",
       "propNumber": 58,
-      "label": "Sniper with Knife",
+      "label": "狙击枪匕首组合",
       "categoryId": "firearms",
       "categoryLabel": "枪械",
       "modelUrl": "/guo-3d-assets/guo-mounted-props-200/models/0058_sniper-with-knife.fbx",
@@ -390,7 +390,7 @@
     {
       "id": "guo-prop-0061",
       "propNumber": 61,
-      "label": "Fantasy Sword 1",
+      "label": "奇幻之剑1",
       "categoryId": "melee",
       "categoryLabel": "冷兵器",
       "modelUrl": "/guo-3d-assets/guo-mounted-props-200/models/0061_fantasy-sword-1.fbx",
@@ -407,7 +407,7 @@
     {
       "id": "guo-prop-0063",
       "propNumber": 63,
-      "label": "Fantasy Sword 3",
+      "label": "奇幻之剑3",
       "categoryId": "melee",
       "categoryLabel": "冷兵器",
       "modelUrl": "/guo-3d-assets/guo-mounted-props-200/models/0063_fantasy-sword-3.fbx",
@@ -424,7 +424,7 @@
     {
       "id": "guo-prop-0064",
       "propNumber": 64,
-      "label": "Fantasy Sword 4",
+      "label": "奇幻之剑4",
       "categoryId": "melee",
       "categoryLabel": "冷兵器",
       "modelUrl": "/guo-3d-assets/guo-mounted-props-200/models/0064_fantasy-sword-4.fbx",
@@ -441,7 +441,7 @@
     {
       "id": "guo-prop-0066",
       "propNumber": 66,
-      "label": "Fantasy Sword 6",
+      "label": "奇幻之剑6",
       "categoryId": "melee",
       "categoryLabel": "冷兵器",
       "modelUrl": "/guo-3d-assets/guo-mounted-props-200/models/0066_fantasy-sword-6.fbx",
@@ -458,7 +458,7 @@
     {
       "id": "guo-prop-0068",
       "propNumber": 68,
-      "label": "Greek Sword",
+      "label": "希腊剑",
       "categoryId": "melee",
       "categoryLabel": "冷兵器",
       "modelUrl": "/guo-3d-assets/guo-mounted-props-200/models/0068_greek-sword.fbx",
@@ -475,7 +475,7 @@
     {
       "id": "guo-prop-0072",
       "propNumber": 72,
-      "label": "Sabre",
+      "label": "军刀",
       "categoryId": "melee",
       "categoryLabel": "冷兵器",
       "modelUrl": "/guo-3d-assets/guo-mounted-props-200/models/0072_sabre.fbx",
@@ -492,7 +492,7 @@
     {
       "id": "guo-prop-0075",
       "propNumber": 75,
-      "label": "Glass",
+      "label": "玻璃杯",
       "categoryId": "accessory",
       "categoryLabel": "随身配件",
       "modelUrl": "/guo-3d-assets/guo-mounted-props-200/models/0075_glass.fbx",
@@ -509,7 +509,7 @@
     {
       "id": "guo-prop-0079",
       "propNumber": 79,
-      "label": "Open Book",
+      "label": "摊开的书",
       "categoryId": "environment",
       "categoryLabel": "场景环境",
       "modelUrl": "/guo-3d-assets/guo-mounted-props-200/models/0079_open-book.fbx",
@@ -526,7 +526,7 @@
     {
       "id": "guo-prop-0080",
       "propNumber": 80,
-      "label": "Half Open Book",
+      "label": "半开的书",
       "categoryId": "environment",
       "categoryLabel": "场景环境",
       "modelUrl": "/guo-3d-assets/guo-mounted-props-200/models/0080_half-open-book.fbx",
@@ -543,7 +543,7 @@
     {
       "id": "guo-prop-0081",
       "propNumber": 81,
-      "label": "Microphone",
+      "label": "麦克风",
       "categoryId": "equipment",
       "categoryLabel": "设备工具",
       "modelUrl": "/guo-3d-assets/guo-mounted-props-200/models/0081_microphone.fbx",
@@ -560,7 +560,7 @@
     {
       "id": "guo-prop-0083",
       "propNumber": 83,
-      "label": "Skateboard",
+      "label": "滑板",
       "categoryId": "equipment",
       "categoryLabel": "设备工具",
       "modelUrl": "/guo-3d-assets/guo-mounted-props-200/models/0083_skateboard.fbx",
@@ -577,7 +577,7 @@
     {
       "id": "guo-prop-0084",
       "propNumber": 84,
-      "label": "Headphones",
+      "label": "耳机",
       "categoryId": "equipment",
       "categoryLabel": "设备工具",
       "modelUrl": "/guo-3d-assets/guo-mounted-props-200/models/0084_headphones.fbx",
@@ -594,7 +594,7 @@
     {
       "id": "guo-prop-0085",
       "propNumber": 85,
-      "label": "Acoustic Guitar",
+      "label": "木吉他",
       "categoryId": "equipment",
       "categoryLabel": "设备工具",
       "modelUrl": "/guo-3d-assets/guo-mounted-props-200/models/0085_acoustic-guitar.fbx",
@@ -611,7 +611,7 @@
     {
       "id": "guo-prop-0089",
       "propNumber": 89,
-      "label": "Fairy Wand",
+      "label": "仙子魔杖",
       "categoryId": "accessory",
       "categoryLabel": "随身配件",
       "modelUrl": "/guo-3d-assets/guo-mounted-props-200/models/0089_fairy-wand.fbx",
@@ -628,7 +628,7 @@
     {
       "id": "guo-prop-0092",
       "propNumber": 92,
-      "label": "Angel Halo",
+      "label": "天使光环",
       "categoryId": "accessory",
       "categoryLabel": "随身配件",
       "modelUrl": "/guo-3d-assets/guo-mounted-props-200/models/0092_angel-halo.fbx",
@@ -645,7 +645,7 @@
     {
       "id": "guo-prop-0093",
       "propNumber": 93,
-      "label": "Crystal Ball",
+      "label": "水晶球",
       "categoryId": "accessory",
       "categoryLabel": "随身配件",
       "modelUrl": "/guo-3d-assets/guo-mounted-props-200/models/0093_crystal-ball.fbx",
@@ -662,7 +662,7 @@
     {
       "id": "guo-prop-0094",
       "propNumber": 94,
-      "label": "Witch Hat",
+      "label": "女巫帽",
       "categoryId": "accessory",
       "categoryLabel": "随身配件",
       "modelUrl": "/guo-3d-assets/guo-mounted-props-200/models/0094_witch-hat.fbx",
@@ -679,7 +679,7 @@
     {
       "id": "guo-prop-0095",
       "propNumber": 95,
-      "label": "Witch Broom",
+      "label": "女巫扫帚",
       "categoryId": "accessory",
       "categoryLabel": "随身配件",
       "modelUrl": "/guo-3d-assets/guo-mounted-props-200/models/0095_witch-broom.fbx",
@@ -696,7 +696,7 @@
     {
       "id": "guo-prop-0096",
       "propNumber": 96,
-      "label": "Witch Wand",
+      "label": "女巫魔杖",
       "categoryId": "accessory",
       "categoryLabel": "随身配件",
       "modelUrl": "/guo-3d-assets/guo-mounted-props-200/models/0096_witch-wand.fbx",
@@ -713,7 +713,7 @@
     {
       "id": "guo-prop-0097",
       "propNumber": 97,
-      "label": "Glasses",
+      "label": "眼镜",
       "categoryId": "accessory",
       "categoryLabel": "随身配件",
       "modelUrl": "/guo-3d-assets/guo-mounted-props-200/models/0097_glasses.fbx",
@@ -730,7 +730,7 @@
     {
       "id": "guo-prop-0111",
       "propNumber": 111,
-      "label": "Magician Wand",
+      "label": "魔术师魔杖",
       "categoryId": "accessory",
       "categoryLabel": "随身配件",
       "modelUrl": "/guo-3d-assets/guo-mounted-props-200/models/0111_magician-wand.fbx",
@@ -747,7 +747,7 @@
     {
       "id": "guo-prop-0114",
       "propNumber": 114,
-      "label": "Wizard Staff 2",
+      "label": "法师法杖2",
       "categoryId": "accessory",
       "categoryLabel": "随身配件",
       "modelUrl": "/guo-3d-assets/guo-mounted-props-200/models/0114_wizard-staff-2.fbx",
@@ -764,7 +764,7 @@
     {
       "id": "guo-prop-0125",
       "propNumber": 125,
-      "label": "Knife",
+      "label": "小刀",
       "categoryId": "accessory",
       "categoryLabel": "随身配件",
       "modelUrl": "/guo-3d-assets/guo-mounted-props-200/models/0125_knife.fbx",
@@ -781,7 +781,7 @@
     {
       "id": "guo-prop-0126",
       "propNumber": 126,
-      "label": "Bowl",
+      "label": "碗",
       "categoryId": "accessory",
       "categoryLabel": "随身配件",
       "modelUrl": "/guo-3d-assets/guo-mounted-props-200/models/0126_bowl.fbx",
@@ -798,7 +798,7 @@
     {
       "id": "guo-prop-0131",
       "propNumber": 131,
-      "label": "Gift",
+      "label": "礼物盒",
       "categoryId": "environment",
       "categoryLabel": "场景环境",
       "modelUrl": "/guo-3d-assets/guo-mounted-props-200/models/0131_gift.fbx",
@@ -815,7 +815,7 @@
     {
       "id": "guo-prop-0132",
       "propNumber": 132,
-      "label": "Candle",
+      "label": "蜡烛",
       "categoryId": "environment",
       "categoryLabel": "场景环境",
       "modelUrl": "/guo-3d-assets/guo-mounted-props-200/models/0132_candle.fbx",
@@ -832,7 +832,7 @@
     {
       "id": "guo-prop-0134",
       "propNumber": 134,
-      "label": "Party Hat",
+      "label": "派对帽",
       "categoryId": "accessory",
       "categoryLabel": "随身配件",
       "modelUrl": "/guo-3d-assets/guo-mounted-props-200/models/0134_party-hat.fbx",
@@ -849,7 +849,7 @@
     {
       "id": "guo-prop-0136",
       "propNumber": 136,
-      "label": "Dining Table",
+      "label": "长方形餐桌",
       "categoryId": "furniture",
       "categoryLabel": "家具",
       "modelUrl": "/guo-3d-assets/guo-mounted-props-200/models/0136_dining-table.fbx",
@@ -866,7 +866,7 @@
     {
       "id": "guo-prop-0138",
       "propNumber": 138,
-      "label": "AK47",
+      "label": "AK47步枪",
       "categoryId": "firearms",
       "categoryLabel": "枪械",
       "modelUrl": "/guo-3d-assets/guo-mounted-props-200/models/0138_ak47.fbx",
@@ -883,7 +883,7 @@
     {
       "id": "guo-prop-0139",
       "propNumber": 139,
-      "label": "Chair",
+      "label": "椅子",
       "categoryId": "furniture",
       "categoryLabel": "家具",
       "modelUrl": "/guo-3d-assets/guo-mounted-props-200/models/0139_chair.fbx",
@@ -900,7 +900,7 @@
     {
       "id": "guo-prop-0142",
       "propNumber": 142,
-      "label": "Kama",
+      "label": "手镰",
       "categoryId": "melee",
       "categoryLabel": "冷兵器",
       "modelUrl": "/guo-3d-assets/guo-mounted-props-200/models/0142_kama.fbx",
@@ -917,7 +917,7 @@
     {
       "id": "guo-prop-0143",
       "propNumber": 143,
-      "label": "Dagger",
+      "label": "匕首",
       "categoryId": "melee",
       "categoryLabel": "冷兵器",
       "modelUrl": "/guo-3d-assets/guo-mounted-props-200/models/0143_dagger.fbx",
@@ -934,7 +934,7 @@
     {
       "id": "guo-prop-0144",
       "propNumber": 144,
-      "label": "Katana",
+      "label": "武士刀",
       "categoryId": "melee",
       "categoryLabel": "冷兵器",
       "modelUrl": "/guo-3d-assets/guo-mounted-props-200/models/0144_katana.fbx",
@@ -951,7 +951,7 @@
     {
       "id": "guo-prop-0147",
       "propNumber": 147,
-      "label": "Sabre",
+      "label": "军刀",
       "categoryId": "melee",
       "categoryLabel": "冷兵器",
       "modelUrl": "/guo-3d-assets/guo-mounted-props-200/models/0147_sabre.fbx",
@@ -968,7 +968,7 @@
     {
       "id": "guo-prop-0149",
       "propNumber": 149,
-      "label": "Kunai",
+      "label": "苦无",
       "categoryId": "melee",
       "categoryLabel": "冷兵器",
       "modelUrl": "/guo-3d-assets/guo-mounted-props-200/models/0149_kunai.fbx",
@@ -985,7 +985,7 @@
     {
       "id": "guo-prop-0154",
       "propNumber": 154,
-      "label": "Scythe",
+      "label": "镰刀",
       "categoryId": "melee",
       "categoryLabel": "冷兵器",
       "modelUrl": "/guo-3d-assets/guo-mounted-props-200/models/0154_scythe.fbx",
@@ -1002,7 +1002,7 @@
     {
       "id": "guo-prop-0156",
       "propNumber": 156,
-      "label": "Medieval Shield",
+      "label": "中世纪盾牌",
       "categoryId": "melee",
       "categoryLabel": "冷兵器",
       "modelUrl": "/guo-3d-assets/guo-mounted-props-200/models/0156_medieval-shield.fbx",
@@ -1019,7 +1019,7 @@
     {
       "id": "guo-prop-0160",
       "propNumber": 160,
-      "label": "Barrel",
+      "label": "木桶",
       "categoryId": "environment",
       "categoryLabel": "场景环境",
       "modelUrl": "/guo-3d-assets/guo-mounted-props-200/models/0160_barrel.fbx",
@@ -1036,7 +1036,7 @@
     {
       "id": "guo-prop-0163",
       "propNumber": 163,
-      "label": "Greek Sword",
+      "label": "希腊剑",
       "categoryId": "melee",
       "categoryLabel": "冷兵器",
       "modelUrl": "/guo-3d-assets/guo-mounted-props-200/models/0163_greek-sword.fbx",
@@ -1053,7 +1053,7 @@
     {
       "id": "guo-prop-0165",
       "propNumber": 165,
-      "label": "Cauldron",
+      "label": "大铁锅",
       "categoryId": "environment",
       "categoryLabel": "场景环境",
       "modelUrl": "/guo-3d-assets/guo-mounted-props-200/models/0165_cauldron.fbx",
@@ -1070,7 +1070,7 @@
     {
       "id": "guo-prop-0168",
       "propNumber": 168,
-      "label": "Axe",
+      "label": "斧头",
       "categoryId": "melee",
       "categoryLabel": "冷兵器",
       "modelUrl": "/guo-3d-assets/guo-mounted-props-200/models/0168_axe.fbx",
@@ -1087,7 +1087,7 @@
     {
       "id": "guo-prop-0170",
       "propNumber": 170,
-      "label": "Pillow",
+      "label": "抱枕",
       "categoryId": "furniture",
       "categoryLabel": "家具",
       "modelUrl": "/guo-3d-assets/guo-mounted-props-200/models/0170_pillow.fbx",
@@ -1104,7 +1104,7 @@
     {
       "id": "guo-prop-0171",
       "propNumber": 171,
-      "label": "Small Table",
+      "label": "小桌",
       "categoryId": "furniture",
       "categoryLabel": "家具",
       "modelUrl": "/guo-3d-assets/guo-mounted-props-200/models/0171_small-table.fbx",
@@ -1121,7 +1121,7 @@
     {
       "id": "guo-prop-0172",
       "propNumber": 172,
-      "label": "Book",
+      "label": "书籍",
       "categoryId": "environment",
       "categoryLabel": "场景环境",
       "modelUrl": "/guo-3d-assets/guo-mounted-props-200/models/0172_book.fbx",
@@ -1138,7 +1138,7 @@
     {
       "id": "guo-prop-0174",
       "propNumber": 174,
-      "label": "Spear",
+      "label": "长矛",
       "categoryId": "melee",
       "categoryLabel": "冷兵器",
       "modelUrl": "/guo-3d-assets/guo-mounted-props-200/models/0174_spear.fbx",
@@ -1155,7 +1155,7 @@
     {
       "id": "guo-prop-0178",
       "propNumber": 178,
-      "label": "Crossbow",
+      "label": "十字弩",
       "categoryId": "melee",
       "categoryLabel": "冷兵器",
       "modelUrl": "/guo-3d-assets/guo-mounted-props-200/models/0178_crossbow.fbx",
@@ -1172,7 +1172,7 @@
     {
       "id": "guo-prop-0179",
       "propNumber": 179,
-      "label": "Rock",
+      "label": "岩石",
       "categoryId": "environment",
       "categoryLabel": "场景环境",
       "modelUrl": "/guo-3d-assets/guo-mounted-props-200/models/0179_rock.fbx",
@@ -1189,7 +1189,7 @@
     {
       "id": "guo-prop-0183",
       "propNumber": 183,
-      "label": "Pirate Hat",
+      "label": "海盗帽",
       "categoryId": "accessory",
       "categoryLabel": "随身配件",
       "modelUrl": "/guo-3d-assets/guo-mounted-props-200/models/0183_pirate-hat.fbx",
@@ -1206,7 +1206,7 @@
     {
       "id": "guo-prop-0185",
       "propNumber": 185,
-      "label": "Couch",
+      "label": "沙发",
       "categoryId": "furniture",
       "categoryLabel": "家具",
       "modelUrl": "/guo-3d-assets/guo-mounted-props-200/models/0185_couch.fbx",
@@ -1223,7 +1223,7 @@
     {
       "id": "guo-prop-0186",
       "propNumber": 186,
-      "label": "Cowboy Hat",
+      "label": "牛仔帽",
       "categoryId": "accessory",
       "categoryLabel": "随身配件",
       "modelUrl": "/guo-3d-assets/guo-mounted-props-200/models/0186_cowboy-hat.fbx",
@@ -1240,7 +1240,7 @@
     {
       "id": "guo-prop-0187",
       "propNumber": 187,
-      "label": "AWP Sniper",
+      "label": "AWP狙击枪",
       "categoryId": "firearms",
       "categoryLabel": "枪械",
       "modelUrl": "/guo-3d-assets/guo-mounted-props-200/models/0187_awp-sniper.fbx",
@@ -1257,7 +1257,7 @@
     {
       "id": "guo-prop-0188",
       "propNumber": 188,
-      "label": "AK74u",
+      "label": "AK74U步枪",
       "categoryId": "firearms",
       "categoryLabel": "枪械",
       "modelUrl": "/guo-3d-assets/guo-mounted-props-200/models/0188_ak74u.fbx",
@@ -1274,7 +1274,7 @@
     {
       "id": "guo-prop-0189",
       "propNumber": 189,
-      "label": "Desert Eagle",
+      "label": "沙漠之鹰",
       "categoryId": "firearms",
       "categoryLabel": "枪械",
       "modelUrl": "/guo-3d-assets/guo-mounted-props-200/models/0189_desert-eagle.fbx",
@@ -1291,7 +1291,7 @@
     {
       "id": "guo-prop-0190",
       "propNumber": 190,
-      "label": "Dragunov Sniper",
+      "label": "德拉贡诺夫狙击枪",
       "categoryId": "firearms",
       "categoryLabel": "枪械",
       "modelUrl": "/guo-3d-assets/guo-mounted-props-200/models/0190_dragunov-sniper.fbx",
@@ -1308,7 +1308,7 @@
     {
       "id": "guo-prop-0191",
       "propNumber": 191,
-      "label": "Mustang GT - Low Poly",
+      "label": "野马GT跑车",
       "categoryId": "vehicle",
       "categoryLabel": "交通载具",
       "modelUrl": "/guo-3d-assets/guo-mounted-props-200/models/0191_mustang-gt-low-poly.fbx",
@@ -1325,7 +1325,7 @@
     {
       "id": "guo-prop-0192",
       "propNumber": 192,
-      "label": "Fantasy Sword 1",
+      "label": "奇幻之剑1",
       "categoryId": "melee",
       "categoryLabel": "冷兵器",
       "modelUrl": "/guo-3d-assets/guo-mounted-props-200/models/0192_fantasy-sword-1.fbx",
@@ -1342,7 +1342,7 @@
     {
       "id": "guo-prop-0193",
       "propNumber": 193,
-      "label": "Fantasy Sword 2",
+      "label": "奇幻之剑2",
       "categoryId": "melee",
       "categoryLabel": "冷兵器",
       "modelUrl": "/guo-3d-assets/guo-mounted-props-200/models/0193_fantasy-sword-2.fbx",
@@ -1359,7 +1359,7 @@
     {
       "id": "guo-prop-0194",
       "propNumber": 194,
-      "label": "Fantasy Sword 3",
+      "label": "奇幻之剑3",
       "categoryId": "melee",
       "categoryLabel": "冷兵器",
       "modelUrl": "/guo-3d-assets/guo-mounted-props-200/models/0194_fantasy-sword-3.fbx",
@@ -1376,7 +1376,7 @@
     {
       "id": "guo-prop-0195",
       "propNumber": 195,
-      "label": "Fantasy Sword 4",
+      "label": "奇幻之剑4",
       "categoryId": "melee",
       "categoryLabel": "冷兵器",
       "modelUrl": "/guo-3d-assets/guo-mounted-props-200/models/0195_fantasy-sword-4.fbx",
@@ -1393,7 +1393,7 @@
     {
       "id": "guo-prop-0196",
       "propNumber": 196,
-      "label": "Fantasy Sword 5",
+      "label": "奇幻之剑5",
       "categoryId": "melee",
       "categoryLabel": "冷兵器",
       "modelUrl": "/guo-3d-assets/guo-mounted-props-200/models/0196_fantasy-sword-5.fbx",
@@ -1410,7 +1410,7 @@
     {
       "id": "guo-prop-0197",
       "propNumber": 197,
-      "label": "Fantasy Sword 6",
+      "label": "奇幻之剑6",
       "categoryId": "melee",
       "categoryLabel": "冷兵器",
       "modelUrl": "/guo-3d-assets/guo-mounted-props-200/models/0197_fantasy-sword-6.fbx",
@@ -1427,7 +1427,7 @@
     {
       "id": "guo-prop-0199",
       "propNumber": 199,
-      "label": "Old Helmet",
+      "label": "旧头盔",
       "categoryId": "accessory",
       "categoryLabel": "随身配件",
       "modelUrl": "/guo-3d-assets/guo-mounted-props-200/models/0199_old-helmet.fbx",
@@ -1444,7 +1444,7 @@
     {
       "id": "guo-prop-0200",
       "propNumber": 200,
-      "label": "Chain",
+      "label": "锁链",
       "categoryId": "melee",
       "categoryLabel": "冷兵器",
       "modelUrl": "/guo-3d-assets/guo-mounted-props-200/models/0200_chain.fbx",
@@ -1461,7 +1461,7 @@
     {
       "id": "guo-prop-0201",
       "propNumber": 201,
-      "label": "Revolver",
+      "label": "左轮手枪",
       "categoryId": "firearms",
       "categoryLabel": "枪械",
       "modelUrl": "/guo-3d-assets/guo-mounted-props-200/models/0201_revolver.fbx",
@@ -1478,7 +1478,7 @@
     {
       "id": "guo-prop-0202",
       "propNumber": 202,
-      "label": "BS1 Tishina",
+      "label": "BS1微声步枪",
       "categoryId": "firearms",
       "categoryLabel": "枪械",
       "modelUrl": "/guo-3d-assets/guo-mounted-props-200/models/0202_bs1-tishina.fbx",
@@ -1495,7 +1495,7 @@
     {
       "id": "guo-prop-0204",
       "propNumber": 204,
-      "label": "Glock 18",
+      "label": "格洛克18手枪",
       "categoryId": "firearms",
       "categoryLabel": "枪械",
       "modelUrl": "/guo-3d-assets/guo-mounted-props-200/models/0204_glock-18.fbx",
@@ -1512,7 +1512,7 @@
     {
       "id": "guo-prop-0205",
       "propNumber": 205,
-      "label": "Mini Uzi",
+      "label": "迷你乌兹冲锋枪",
       "categoryId": "firearms",
       "categoryLabel": "枪械",
       "modelUrl": "/guo-3d-assets/guo-mounted-props-200/models/0205_mini-uzi.fbx",
@@ -1529,7 +1529,7 @@
     {
       "id": "guo-prop-0206",
       "propNumber": 206,
-      "label": "MP5",
+      "label": "MP5冲锋枪",
       "categoryId": "firearms",
       "categoryLabel": "枪械",
       "modelUrl": "/guo-3d-assets/guo-mounted-props-200/models/0206_mp5.fbx",
@@ -1546,7 +1546,7 @@
     {
       "id": "guo-prop-0207",
       "propNumber": 207,
-      "label": "Rocket Launcher",
+      "label": "火箭筒",
       "categoryId": "firearms",
       "categoryLabel": "枪械",
       "modelUrl": "/guo-3d-assets/guo-mounted-props-200/models/0207_rocket-launcher.fbx",
@@ -1563,7 +1563,7 @@
     {
       "id": "guo-prop-0210",
       "propNumber": 210,
-      "label": "Baseball Bat",
+      "label": "棒球棍",
       "categoryId": "melee",
       "categoryLabel": "冷兵器",
       "modelUrl": "/guo-3d-assets/guo-mounted-props-200/models/0210_baseball-bat.fbx",
@@ -1580,7 +1580,7 @@
     {
       "id": "guo-prop-0211",
       "propNumber": 211,
-      "label": "Sai",
+      "label": "十手",
       "categoryId": "melee",
       "categoryLabel": "冷兵器",
       "modelUrl": "/guo-3d-assets/guo-mounted-props-200/models/0211_sai.fbx",
@@ -1597,7 +1597,7 @@
     {
       "id": "guo-prop-0215",
       "propNumber": 215,
-      "label": "Small Table",
+      "label": "小桌",
       "categoryId": "furniture",
       "categoryLabel": "家具",
       "modelUrl": "/guo-3d-assets/guo-mounted-props-200/models/0215_small-table.fbx",
@@ -1614,7 +1614,7 @@
     {
       "id": "guo-prop-0216",
       "propNumber": 216,
-      "label": "AK47",
+      "label": "AK47步枪",
       "categoryId": "firearms",
       "categoryLabel": "枪械",
       "modelUrl": "/guo-3d-assets/guo-mounted-props-200/models/0216_ak47.fbx",
@@ -1631,7 +1631,7 @@
     {
       "id": "guo-prop-0218",
       "propNumber": 218,
-      "label": "Metal Bat",
+      "label": "金属球棒",
       "categoryId": "melee",
       "categoryLabel": "冷兵器",
       "modelUrl": "/guo-3d-assets/guo-mounted-props-200/models/0218_metal-bat.fbx",
@@ -1648,7 +1648,7 @@
     {
       "id": "guo-prop-0220",
       "propNumber": 220,
-      "label": "Pistol",
+      "label": "手枪",
       "categoryId": "firearms",
       "categoryLabel": "枪械",
       "modelUrl": "/guo-3d-assets/guo-mounted-props-200/models/0220_pistol.fbx",
@@ -1665,7 +1665,7 @@
     {
       "id": "guo-prop-0222",
       "propNumber": 222,
-      "label": "Sheath",
+      "label": "刀鞘",
       "categoryId": "melee",
       "categoryLabel": "冷兵器",
       "modelUrl": "/guo-3d-assets/guo-mounted-props-200/models/0222_sheath.fbx",
@@ -1682,7 +1682,7 @@
     {
       "id": "guo-prop-0223",
       "propNumber": 223,
-      "label": "M16",
+      "label": "M16步枪",
       "categoryId": "firearms",
       "categoryLabel": "枪械",
       "modelUrl": "/guo-3d-assets/guo-mounted-props-200/models/0223_m16.fbx",
@@ -1699,7 +1699,7 @@
     {
       "id": "guo-prop-0224",
       "propNumber": 224,
-      "label": "M3 Shotgun",
+      "label": "M3霰弹枪",
       "categoryId": "firearms",
       "categoryLabel": "枪械",
       "modelUrl": "/guo-3d-assets/guo-mounted-props-200/models/0224_m3-shotgun.fbx",
@@ -1716,7 +1716,7 @@
     {
       "id": "guo-prop-0228",
       "propNumber": 228,
-      "label": "Sniper",
+      "label": "狙击枪",
       "categoryId": "firearms",
       "categoryLabel": "枪械",
       "modelUrl": "/guo-3d-assets/guo-mounted-props-200/models/0228_sniper.fbx",
@@ -1733,7 +1733,7 @@
     {
       "id": "guo-prop-0230",
       "propNumber": 230,
-      "label": "Sniper with Knife",
+      "label": "狙击枪匕首组合",
       "categoryId": "firearms",
       "categoryLabel": "枪械",
       "modelUrl": "/guo-3d-assets/guo-mounted-props-200/models/0230_sniper-with-knife.fbx",
@@ -1750,7 +1750,7 @@
     {
       "id": "guo-prop-0231",
       "propNumber": 231,
-      "label": "Short Couch",
+      "label": "短沙发",
       "categoryId": "furniture",
       "categoryLabel": "家具",
       "modelUrl": "/guo-3d-assets/guo-mounted-props-200/models/0231_short-couch.fbx",
@@ -1767,7 +1767,7 @@
     {
       "id": "guo-prop-0232",
       "propNumber": 232,
-      "label": "Pillow",
+      "label": "抱枕",
       "categoryId": "furniture",
       "categoryLabel": "家具",
       "modelUrl": "/guo-3d-assets/guo-mounted-props-200/models/0232_pillow.fbx",
@@ -1784,7 +1784,7 @@
     {
       "id": "guo-prop-0233",
       "propNumber": 233,
-      "label": "Greek Sword",
+      "label": "希腊剑",
       "categoryId": "melee",
       "categoryLabel": "冷兵器",
       "modelUrl": "/guo-3d-assets/guo-mounted-props-200/models/0233_greek-sword.fbx",
@@ -1801,7 +1801,7 @@
     {
       "id": "guo-prop-0234",
       "propNumber": 234,
-      "label": "Katana 2",
+      "label": "武士刀2",
       "categoryId": "melee",
       "categoryLabel": "冷兵器",
       "modelUrl": "/guo-3d-assets/guo-mounted-props-200/models/0234_katana-2.fbx",
@@ -1818,7 +1818,7 @@
     {
       "id": "guo-prop-0235",
       "propNumber": 235,
-      "label": "Katana 3",
+      "label": "武士刀3",
       "categoryId": "melee",
       "categoryLabel": "冷兵器",
       "modelUrl": "/guo-3d-assets/guo-mounted-props-200/models/0235_katana-3.fbx",
@@ -1835,7 +1835,7 @@
     {
       "id": "guo-prop-0236",
       "propNumber": 236,
-      "label": "Pirate Sword",
+      "label": "海盗剑",
       "categoryId": "melee",
       "categoryLabel": "冷兵器",
       "modelUrl": "/guo-3d-assets/guo-mounted-props-200/models/0236_pirate-sword.fbx",
@@ -1852,7 +1852,7 @@
     {
       "id": "guo-prop-0237",
       "propNumber": 237,
-      "label": "Sabre",
+      "label": "军刀",
       "categoryId": "melee",
       "categoryLabel": "冷兵器",
       "modelUrl": "/guo-3d-assets/guo-mounted-props-200/models/0237_sabre.fbx",
@@ -1869,7 +1869,7 @@
     {
       "id": "guo-prop-0238",
       "propNumber": 238,
-      "label": "Camera",
+      "label": "相机",
       "categoryId": "accessory",
       "categoryLabel": "随身配件",
       "modelUrl": "/guo-3d-assets/guo-mounted-props-200/models/0238_camera.fbx",
@@ -1886,7 +1886,7 @@
     {
       "id": "guo-prop-0239",
       "propNumber": 239,
-      "label": "Paper",
+      "label": "纸张",
       "categoryId": "accessory",
       "categoryLabel": "随身配件",
       "modelUrl": "/guo-3d-assets/guo-mounted-props-200/models/0239_paper.fbx",
@@ -1903,7 +1903,7 @@
     {
       "id": "guo-prop-0240",
       "propNumber": 240,
-      "label": "Pencil",
+      "label": "铅笔",
       "categoryId": "accessory",
       "categoryLabel": "随身配件",
       "modelUrl": "/guo-3d-assets/guo-mounted-props-200/models/0240_pencil.fbx",
@@ -1920,7 +1920,7 @@
     {
       "id": "guo-prop-0241",
       "propNumber": 241,
-      "label": "Lighter",
+      "label": "打火机",
       "categoryId": "accessory",
       "categoryLabel": "随身配件",
       "modelUrl": "/guo-3d-assets/guo-mounted-props-200/models/0241_lighter.fbx",
@@ -1937,7 +1937,7 @@
     {
       "id": "guo-prop-0243",
       "propNumber": 243,
-      "label": "Cigarette",
+      "label": "香烟",
       "categoryId": "accessory",
       "categoryLabel": "随身配件",
       "modelUrl": "/guo-3d-assets/guo-mounted-props-200/models/0243_cigarette.fbx",
@@ -1954,7 +1954,7 @@
     {
       "id": "guo-prop-0244",
       "propNumber": 244,
-      "label": "Helmet",
+      "label": "头盔",
       "categoryId": "accessory",
       "categoryLabel": "随身配件",
       "modelUrl": "/guo-3d-assets/guo-mounted-props-200/models/0244_helmet.fbx",
@@ -1971,7 +1971,7 @@
     {
       "id": "guo-prop-0245",
       "propNumber": 245,
-      "label": "Walking Stick",
+      "label": "手杖",
       "categoryId": "accessory",
       "categoryLabel": "随身配件",
       "modelUrl": "/guo-3d-assets/guo-mounted-props-200/models/0245_walking-stick.fbx",
@@ -1988,7 +1988,7 @@
     {
       "id": "guo-prop-0247",
       "propNumber": 247,
-      "label": "Lantern",
+      "label": "灯笼",
       "categoryId": "environment",
       "categoryLabel": "场景环境",
       "modelUrl": "/guo-3d-assets/guo-mounted-props-200/models/0247_lantern.fbx",
@@ -2005,7 +2005,7 @@
     {
       "id": "guo-prop-0248",
       "propNumber": 248,
-      "label": "Cafe Table1",
+      "label": "咖啡桌1",
       "categoryId": "environment",
       "categoryLabel": "场景环境",
       "modelUrl": "/guo-3d-assets/guo-mounted-props-200/models/0248_cafe-table1.fbx",
@@ -2022,7 +2022,7 @@
     {
       "id": "guo-prop-0249",
       "propNumber": 249,
-      "label": "Cafe Table2 ",
+      "label": "咖啡桌2",
       "categoryId": "environment",
       "categoryLabel": "场景环境",
       "modelUrl": "/guo-3d-assets/guo-mounted-props-200/models/0249_cafe-table2.fbx",
@@ -2039,7 +2039,7 @@
     {
       "id": "guo-prop-0250",
       "propNumber": 250,
-      "label": "Bar Table3 ",
+      "label": "吧台桌3",
       "categoryId": "environment",
       "categoryLabel": "场景环境",
       "modelUrl": "/guo-3d-assets/guo-mounted-props-200/models/0250_bar-table3.fbx",
@@ -2056,7 +2056,7 @@
     {
       "id": "guo-prop-0251",
       "propNumber": 251,
-      "label": "Tavern Table4 ",
+      "label": "酒馆桌4",
       "categoryId": "environment",
       "categoryLabel": "场景环境",
       "modelUrl": "/guo-3d-assets/guo-mounted-props-200/models/0251_tavern-table4.fbx",
@@ -2073,7 +2073,7 @@
     {
       "id": "guo-prop-0252",
       "propNumber": 252,
-      "label": "Tavern Table5 ",
+      "label": "酒馆桌5",
       "categoryId": "environment",
       "categoryLabel": "场景环境",
       "modelUrl": "/guo-3d-assets/guo-mounted-props-200/models/0252_tavern-table5.fbx",
@@ -2090,7 +2090,7 @@
     {
       "id": "guo-prop-0253",
       "propNumber": 253,
-      "label": "Tavern Bench1 ",
+      "label": "酒馆长凳1",
       "categoryId": "environment",
       "categoryLabel": "场景环境",
       "modelUrl": "/guo-3d-assets/guo-mounted-props-200/models/0253_tavern-bench1.fbx",
@@ -2107,7 +2107,7 @@
     {
       "id": "guo-prop-0254",
       "propNumber": 254,
-      "label": "Tavern Stool1 ",
+      "label": "酒馆凳1",
       "categoryId": "environment",
       "categoryLabel": "场景环境",
       "modelUrl": "/guo-3d-assets/guo-mounted-props-200/models/0254_tavern-stool1.fbx",
@@ -2124,7 +2124,7 @@
     {
       "id": "guo-prop-0255",
       "propNumber": 255,
-      "label": "Tavern Chair1 ",
+      "label": "酒馆椅1",
       "categoryId": "environment",
       "categoryLabel": "场景环境",
       "modelUrl": "/guo-3d-assets/guo-mounted-props-200/models/0255_tavern-chair1.fbx",
@@ -2141,7 +2141,7 @@
     {
       "id": "guo-prop-0256",
       "propNumber": 256,
-      "label": "Tavern Chair2 ",
+      "label": "酒馆椅2",
       "categoryId": "environment",
       "categoryLabel": "场景环境",
       "modelUrl": "/guo-3d-assets/guo-mounted-props-200/models/0256_tavern-chair2.fbx",
@@ -2158,7 +2158,7 @@
     {
       "id": "guo-prop-0257",
       "propNumber": 257,
-      "label": "Wall Torch1",
+      "label": "壁挂火把1",
       "categoryId": "environment",
       "categoryLabel": "场景环境",
       "modelUrl": "/guo-3d-assets/guo-mounted-props-200/models/0257_wall-torch1.fbx",
@@ -2175,7 +2175,7 @@
     {
       "id": "guo-prop-0258",
       "propNumber": 258,
-      "label": "Wall Torch2",
+      "label": "壁挂火把2",
       "categoryId": "environment",
       "categoryLabel": "场景环境",
       "modelUrl": "/guo-3d-assets/guo-mounted-props-200/models/0258_wall-torch2.fbx",
@@ -2192,7 +2192,7 @@
     {
       "id": "guo-prop-0260",
       "propNumber": 260,
-      "label": "Candle Basic",
+      "label": "普通蜡烛",
       "categoryId": "environment",
       "categoryLabel": "场景环境",
       "modelUrl": "/guo-3d-assets/guo-mounted-props-200/models/0260_candle-basic.fbx",
@@ -2209,7 +2209,7 @@
     {
       "id": "guo-prop-0261",
       "propNumber": 261,
-      "label": "Cafe Chair3 ",
+      "label": "咖啡椅3",
       "categoryId": "environment",
       "categoryLabel": "场景环境",
       "modelUrl": "/guo-3d-assets/guo-mounted-props-200/models/0261_cafe-chair3.fbx",
@@ -2226,7 +2226,7 @@
     {
       "id": "guo-prop-0262",
       "propNumber": 262,
-      "label": "Cafe Stool2 ",
+      "label": "咖啡凳2",
       "categoryId": "environment",
       "categoryLabel": "场景环境",
       "modelUrl": "/guo-3d-assets/guo-mounted-props-200/models/0262_cafe-stool2.fbx",
@@ -2243,7 +2243,7 @@
     {
       "id": "guo-prop-0263",
       "propNumber": 263,
-      "label": "Bar Stool3 ",
+      "label": "吧台凳3",
       "categoryId": "environment",
       "categoryLabel": "场景环境",
       "modelUrl": "/guo-3d-assets/guo-mounted-props-200/models/0263_bar-stool3.fbx",
@@ -2260,7 +2260,7 @@
     {
       "id": "guo-prop-0264",
       "propNumber": 264,
-      "label": "Vending Machine1 Empty",
+      "label": "空自动售货机1",
       "categoryId": "environment",
       "categoryLabel": "场景环境",
       "modelUrl": "/guo-3d-assets/guo-mounted-props-200/models/0264_vending-machine1-empty.fbx",
@@ -2277,7 +2277,7 @@
     {
       "id": "guo-prop-0266",
       "propNumber": 266,
-      "label": "Bottle1",
+      "label": "瓶子1",
       "categoryId": "environment",
       "categoryLabel": "场景环境",
       "modelUrl": "/guo-3d-assets/guo-mounted-props-200/models/0266_bottle1.fbx",
@@ -2294,7 +2294,7 @@
     {
       "id": "guo-prop-0267",
       "propNumber": 267,
-      "label": "Chips",
+      "label": "薯片",
       "categoryId": "environment",
       "categoryLabel": "场景环境",
       "modelUrl": "/guo-3d-assets/guo-mounted-props-200/models/0267_chips.fbx",
@@ -2311,7 +2311,7 @@
     {
       "id": "guo-prop-0268",
       "propNumber": 268,
-      "label": "Instant Noodles",
+      "label": "泡面",
       "categoryId": "environment",
       "categoryLabel": "场景环境",
       "modelUrl": "/guo-3d-assets/guo-mounted-props-200/models/0268_instant-noodles.fbx",
@@ -2328,7 +2328,7 @@
     {
       "id": "guo-prop-0272",
       "propNumber": 272,
-      "label": "Sequrity Camera",
+      "label": "监控摄像头",
       "categoryId": "environment",
       "categoryLabel": "场景环境",
       "modelUrl": "/guo-3d-assets/guo-mounted-props-200/models/0272_sequrity-camera.fbx",
@@ -2345,7 +2345,7 @@
     {
       "id": "guo-prop-0273",
       "propNumber": 273,
-      "label": "Sequrity Camera Holder",
+      "label": "监控摄像头支架",
       "categoryId": "environment",
       "categoryLabel": "场景环境",
       "modelUrl": "/guo-3d-assets/guo-mounted-props-200/models/0273_sequrity-camera-holder.fbx",
@@ -2362,7 +2362,7 @@
     {
       "id": "guo-prop-0274",
       "propNumber": 274,
-      "label": "Payphone",
+      "label": "公用电话",
       "categoryId": "environment",
       "categoryLabel": "场景环境",
       "modelUrl": "/guo-3d-assets/guo-mounted-props-200/models/0274_payphone.fbx",
@@ -2379,7 +2379,7 @@
     {
       "id": "guo-prop-0275",
       "propNumber": 275,
-      "label": "Backpack1",
+      "label": "背包1",
       "categoryId": "environment",
       "categoryLabel": "场景环境",
       "modelUrl": "/guo-3d-assets/guo-mounted-props-200/models/0275_backpack1.fbx",
@@ -2396,7 +2396,7 @@
     {
       "id": "guo-prop-0276",
       "propNumber": 276,
-      "label": "Fire Hydrant",
+      "label": "消防栓",
       "categoryId": "environment",
       "categoryLabel": "场景环境",
       "modelUrl": "/guo-3d-assets/guo-mounted-props-200/models/0276_fire-hydrant.fbx",
@@ -2413,7 +2413,7 @@
     {
       "id": "guo-prop-0277",
       "propNumber": 277,
-      "label": "Pointer1",
+      "label": "指示棒1",
       "categoryId": "environment",
       "categoryLabel": "场景环境",
       "modelUrl": "/guo-3d-assets/guo-mounted-props-200/models/0277_pointer1.fbx",
@@ -2430,7 +2430,7 @@
     {
       "id": "guo-prop-0278",
       "propNumber": 278,
-      "label": "Pointer2",
+      "label": "指示棒2",
       "categoryId": "environment",
       "categoryLabel": "场景环境",
       "modelUrl": "/guo-3d-assets/guo-mounted-props-200/models/0278_pointer2.fbx",
@@ -2447,7 +2447,7 @@
     {
       "id": "guo-prop-0282",
       "propNumber": 282,
-      "label": "Bulletin Board",
+      "label": "公告栏",
       "categoryId": "environment",
       "categoryLabel": "场景环境",
       "modelUrl": "/guo-3d-assets/guo-mounted-props-200/models/0282_bulletin-board.fbx",
@@ -2464,7 +2464,7 @@
     {
       "id": "guo-prop-0283",
       "propNumber": 283,
-      "label": "Sign1",
+      "label": "指示牌1",
       "categoryId": "environment",
       "categoryLabel": "场景环境",
       "modelUrl": "/guo-3d-assets/guo-mounted-props-200/models/0283_sign1.fbx",
@@ -2481,7 +2481,7 @@
     {
       "id": "guo-prop-0285",
       "propNumber": 285,
-      "label": "Oar",
+      "label": "船桨",
       "categoryId": "environment",
       "categoryLabel": "场景环境",
       "modelUrl": "/guo-3d-assets/guo-mounted-props-200/models/0285_oar.fbx",
@@ -2498,7 +2498,7 @@
     {
       "id": "guo-prop-0286",
       "propNumber": 286,
-      "label": "Boat",
+      "label": "小船",
       "categoryId": "environment",
       "categoryLabel": "场景环境",
       "modelUrl": "/guo-3d-assets/guo-mounted-props-200/models/0286_boat.fbx",
@@ -2515,7 +2515,7 @@
     {
       "id": "guo-prop-0288",
       "propNumber": 288,
-      "label": "Canister",
+      "label": "金属罐",
       "categoryId": "environment",
       "categoryLabel": "场景环境",
       "modelUrl": "/guo-3d-assets/guo-mounted-props-200/models/0288_canister.fbx",
@@ -2532,7 +2532,7 @@
     {
       "id": "guo-prop-0290",
       "propNumber": 290,
-      "label": "Mandolin",
+      "label": "曼陀林",
       "categoryId": "environment",
       "categoryLabel": "场景环境",
       "modelUrl": "/guo-3d-assets/guo-mounted-props-200/models/0290_mandolin.fbx",
@@ -2549,7 +2549,7 @@
     {
       "id": "guo-prop-0291",
       "propNumber": 291,
-      "label": "Gamepad",
+      "label": "游戏手柄",
       "categoryId": "environment",
       "categoryLabel": "场景环境",
       "modelUrl": "/guo-3d-assets/guo-mounted-props-200/models/0291_gamepad.fbx",
@@ -2566,7 +2566,7 @@
     {
       "id": "guo-prop-0292",
       "propNumber": 292,
-      "label": "Bottle2",
+      "label": "瓶子2",
       "categoryId": "environment",
       "categoryLabel": "场景环境",
       "modelUrl": "/guo-3d-assets/guo-mounted-props-200/models/0292_bottle2.fbx",
@@ -2583,7 +2583,7 @@
     {
       "id": "guo-prop-0294",
       "propNumber": 294,
-      "label": "Gramophone",
+      "label": "留声机",
       "categoryId": "environment",
       "categoryLabel": "场景环境",
       "modelUrl": "/guo-3d-assets/guo-mounted-props-200/models/0294_gramophone.fbx",
@@ -2600,7 +2600,7 @@
     {
       "id": "guo-prop-0295",
       "propNumber": 295,
-      "label": "Closet1",
+      "label": "衣柜1",
       "categoryId": "environment",
       "categoryLabel": "场景环境",
       "modelUrl": "/guo-3d-assets/guo-mounted-props-200/models/0295_closet1.fbx",
@@ -2617,7 +2617,7 @@
     {
       "id": "guo-prop-0296",
       "propNumber": 296,
-      "label": "Closet2",
+      "label": "衣柜2",
       "categoryId": "environment",
       "categoryLabel": "场景环境",
       "modelUrl": "/guo-3d-assets/guo-mounted-props-200/models/0296_closet2.fbx",
@@ -2634,7 +2634,7 @@
     {
       "id": "guo-prop-0297",
       "propNumber": 297,
-      "label": "Closet3",
+      "label": "衣柜3",
       "categoryId": "environment",
       "categoryLabel": "场景环境",
       "modelUrl": "/guo-3d-assets/guo-mounted-props-200/models/0297_closet3.fbx",
@@ -2651,7 +2651,7 @@
     {
       "id": "guo-prop-0298",
       "propNumber": 298,
-      "label": "Closet4",
+      "label": "衣柜4",
       "categoryId": "environment",
       "categoryLabel": "场景环境",
       "modelUrl": "/guo-3d-assets/guo-mounted-props-200/models/0298_closet4.fbx",
@@ -2668,7 +2668,7 @@
     {
       "id": "guo-prop-0299",
       "propNumber": 299,
-      "label": "Closet5",
+      "label": "衣柜5",
       "categoryId": "environment",
       "categoryLabel": "场景环境",
       "modelUrl": "/guo-3d-assets/guo-mounted-props-200/models/0299_closet5.fbx",
@@ -2685,7 +2685,7 @@
     {
       "id": "guo-prop-0300",
       "propNumber": 300,
-      "label": "Basic Arch1 ",
+      "label": "基础拱门1",
       "categoryId": "environment",
       "categoryLabel": "场景环境",
       "modelUrl": "/guo-3d-assets/guo-mounted-props-200/models/0300_basic-arch1.fbx",
@@ -2702,7 +2702,7 @@
     {
       "id": "guo-prop-0301",
       "propNumber": 301,
-      "label": "Stone Arch2 ",
+      "label": "石拱门2",
       "categoryId": "environment",
       "categoryLabel": "场景环境",
       "modelUrl": "/guo-3d-assets/guo-mounted-props-200/models/0301_stone-arch2.fbx",
@@ -2719,7 +2719,7 @@
     {
       "id": "guo-prop-0302",
       "propNumber": 302,
-      "label": "Basic Arch3  Door",
+      "label": "带门基础拱门3",
       "categoryId": "environment",
       "categoryLabel": "场景环境",
       "modelUrl": "/guo-3d-assets/guo-mounted-props-200/models/0302_basic-arch3-door.fbx",
@@ -2736,7 +2736,7 @@
     {
       "id": "guo-prop-0303",
       "propNumber": 303,
-      "label": "Stone Arch4  Door",
+      "label": "带门石拱门4",
       "categoryId": "environment",
       "categoryLabel": "场景环境",
       "modelUrl": "/guo-3d-assets/guo-mounted-props-200/models/0303_stone-arch4-door.fbx",
@@ -2753,7 +2753,7 @@
     {
       "id": "guo-prop-0304",
       "propNumber": 304,
-      "label": "Basic  Arch1 Big",
+      "label": "大型基础拱门1",
       "categoryId": "environment",
       "categoryLabel": "场景环境",
       "modelUrl": "/guo-3d-assets/guo-mounted-props-200/models/0304_basic-arch1-big.fbx",
@@ -2770,7 +2770,7 @@
     {
       "id": "guo-prop-0305",
       "propNumber": 305,
-      "label": "Stone Arch2 Big ",
+      "label": "大型石拱门2",
       "categoryId": "environment",
       "categoryLabel": "场景环境",
       "modelUrl": "/guo-3d-assets/guo-mounted-props-200/models/0305_stone-arch2-big.fbx",
@@ -2787,7 +2787,7 @@
     {
       "id": "guo-prop-0306",
       "propNumber": 306,
-      "label": "Basic Arch3 Door Big ",
+      "label": "大型带门基础拱门3",
       "categoryId": "environment",
       "categoryLabel": "场景环境",
       "modelUrl": "/guo-3d-assets/guo-mounted-props-200/models/0306_basic-arch3-door-big.fbx",
@@ -2804,7 +2804,7 @@
     {
       "id": "guo-prop-0307",
       "propNumber": 307,
-      "label": "Stone  Arch4 Door Big",
+      "label": "大型带门石拱门4",
       "categoryId": "environment",
       "categoryLabel": "场景环境",
       "modelUrl": "/guo-3d-assets/guo-mounted-props-200/models/0307_stone-arch4-door-big.fbx",
@@ -2821,7 +2821,7 @@
     {
       "id": "guo-prop-0311",
       "propNumber": 311,
-      "label": "Picture Frame1",
+      "label": "相框1",
       "categoryId": "environment",
       "categoryLabel": "场景环境",
       "modelUrl": "/guo-3d-assets/guo-mounted-props-200/models/0311_picture-frame1.fbx",
@@ -2838,7 +2838,7 @@
     {
       "id": "guo-prop-0312",
       "propNumber": 312,
-      "label": "Picture Frame2",
+      "label": "相框2",
       "categoryId": "environment",
       "categoryLabel": "场景环境",
       "modelUrl": "/guo-3d-assets/guo-mounted-props-200/models/0312_picture-frame2.fbx",
@@ -2855,7 +2855,7 @@
     {
       "id": "guo-prop-0313",
       "propNumber": 313,
-      "label": "Stone Bridge1 ",
+      "label": "石桥1",
       "categoryId": "environment",
       "categoryLabel": "场景环境",
       "modelUrl": "/guo-3d-assets/guo-mounted-props-200/models/0313_stone-bridge1.fbx",
@@ -2872,7 +2872,7 @@
     {
       "id": "guo-prop-0314",
       "propNumber": 314,
-      "label": "Wooden Bridge2 ",
+      "label": "木桥2",
       "categoryId": "environment",
       "categoryLabel": "场景环境",
       "modelUrl": "/guo-3d-assets/guo-mounted-props-200/models/0314_wooden-bridge2.fbx",
@@ -2889,7 +2889,7 @@
     {
       "id": "guo-prop-0315",
       "propNumber": 315,
-      "label": "Wooden Bridge3 ",
+      "label": "木桥3",
       "categoryId": "environment",
       "categoryLabel": "场景环境",
       "modelUrl": "/guo-3d-assets/guo-mounted-props-200/models/0315_wooden-bridge3.fbx",
@@ -2906,7 +2906,7 @@
     {
       "id": "guo-prop-0317",
       "propNumber": 317,
-      "label": "Wooden Bridge4 ",
+      "label": "木桥4",
       "categoryId": "environment",
       "categoryLabel": "场景环境",
       "modelUrl": "/guo-3d-assets/guo-mounted-props-200/models/0317_wooden-bridge4.fbx",
@@ -2923,7 +2923,7 @@
     {
       "id": "guo-prop-0318",
       "propNumber": 318,
-      "label": "Wooden Bridge5 ",
+      "label": "木桥5",
       "categoryId": "environment",
       "categoryLabel": "场景环境",
       "modelUrl": "/guo-3d-assets/guo-mounted-props-200/models/0318_wooden-bridge5.fbx",
@@ -2940,7 +2940,7 @@
     {
       "id": "guo-prop-0321",
       "propNumber": 321,
-      "label": "Scooter",
+      "label": "滑板车",
       "categoryId": "environment",
       "categoryLabel": "场景环境",
       "modelUrl": "/guo-3d-assets/guo-mounted-props-200/models/0321_scooter.fbx",
@@ -2957,7 +2957,7 @@
     {
       "id": "guo-prop-0323",
       "propNumber": 323,
-      "label": "Extinguisher",
+      "label": "灭火器",
       "categoryId": "environment",
       "categoryLabel": "场景环境",
       "modelUrl": "/guo-3d-assets/guo-mounted-props-200/models/0323_extinguisher.fbx",
@@ -2974,7 +2974,7 @@
     {
       "id": "guo-prop-0324",
       "propNumber": 324,
-      "label": "Traffic Cone",
+      "label": "交通锥",
       "categoryId": "environment",
       "categoryLabel": "场景环境",
       "modelUrl": "/guo-3d-assets/guo-mounted-props-200/models/0324_traffic-cone.fbx",
@@ -2991,7 +2991,7 @@
     {
       "id": "guo-prop-0325",
       "propNumber": 325,
-      "label": "Trash Can1 Closed",
+      "label": "闭盖垃圾桶1",
       "categoryId": "environment",
       "categoryLabel": "场景环境",
       "modelUrl": "/guo-3d-assets/guo-mounted-props-200/models/0325_trash-can1-closed.fbx",
@@ -3008,7 +3008,7 @@
     {
       "id": "guo-prop-0326",
       "propNumber": 326,
-      "label": "Trash Can2 Opened",
+      "label": "开盖垃圾桶2",
       "categoryId": "environment",
       "categoryLabel": "场景环境",
       "modelUrl": "/guo-3d-assets/guo-mounted-props-200/models/0326_trash-can2-opened.fbx",
@@ -3025,7 +3025,7 @@
     {
       "id": "guo-prop-0327",
       "propNumber": 327,
-      "label": "Chest1 Closed",
+      "label": "关闭的宝箱1",
       "categoryId": "environment",
       "categoryLabel": "场景环境",
       "modelUrl": "/guo-3d-assets/guo-mounted-props-200/models/0327_chest1-closed.fbx",
@@ -3042,7 +3042,7 @@
     {
       "id": "guo-prop-0328",
       "propNumber": 328,
-      "label": "Chest2 Opened",
+      "label": "打开的宝箱2",
       "categoryId": "environment",
       "categoryLabel": "场景环境",
       "modelUrl": "/guo-3d-assets/guo-mounted-props-200/models/0328_chest2-opened.fbx",
@@ -3059,7 +3059,7 @@
     {
       "id": "guo-prop-0329",
       "propNumber": 329,
-      "label": "Telescope",
+      "label": "望远镜",
       "categoryId": "environment",
       "categoryLabel": "场景环境",
       "modelUrl": "/guo-3d-assets/guo-mounted-props-200/models/0329_telescope.fbx",
@@ -3076,7 +3076,7 @@
     {
       "id": "guo-prop-0330",
       "propNumber": 330,
-      "label": "Telescope Stand",
+      "label": "望远镜支架",
       "categoryId": "environment",
       "categoryLabel": "场景环境",
       "modelUrl": "/guo-3d-assets/guo-mounted-props-200/models/0330_telescope-stand.fbx",
@@ -3093,7 +3093,7 @@
     {
       "id": "guo-prop-0331",
       "propNumber": 331,
-      "label": "Basic Fireplace1 ",
+      "label": "简易壁炉1",
       "categoryId": "environment",
       "categoryLabel": "场景环境",
       "modelUrl": "/guo-3d-assets/guo-mounted-props-200/models/0331_basic-fireplace1.fbx",

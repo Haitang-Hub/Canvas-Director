@@ -35,7 +35,7 @@ type Props = {
 };
 
 /** 元素网格与资产网格共用同一列宽规则，保证同一面板宽度下列数一致。 */
-const GRID_COLUMN_RULE = "[grid-template-columns:repeat(auto-fill,minmax(64px,1fr))]";
+const GRID_COLUMN_RULE = "[grid-template-columns:repeat(auto-fill,minmax(88px,1fr))]";
 
 const NODE_TYPE_ICON: Record<string, typeof Square> = {    [CanvasNodeType.Image]: ImageIcon,
     [CanvasNodeType.Video]: Video,
@@ -473,24 +473,24 @@ const CanvasAssetsTab = memo(function CanvasAssetsTab({ onInsert, theme }: { onI
 function AssetCard({ asset, theme, onInsert, onRemove }: { asset: Asset; theme: CanvasTheme; onInsert: () => void; onRemove: () => void }) {
     const { t } = useTranslation();
     return (
-        <div className="group relative aspect-square overflow-hidden rounded-xl border transition duration-200 hover:-translate-y-0.5 hover:shadow-lg" style={{ borderColor: theme.node.stroke, background: theme.node.panel }}>
+        <div className="@container group relative aspect-square overflow-hidden rounded-xl border transition duration-200 hover:-translate-y-0.5 hover:shadow-lg" style={{ borderColor: theme.node.stroke, background: theme.node.panel }}>
             <AssetCover asset={asset} />
             <div className="absolute inset-0 flex items-center justify-center gap-2 opacity-0 transition duration-200 group-hover:opacity-100">
                 <button
                     type="button"
                     onClick={onInsert}
-                    className="grid size-7 cursor-pointer place-items-center rounded-full bg-white/90 text-stone-700 shadow-sm backdrop-blur transition hover:bg-white hover:text-stone-900 dark:bg-black/60 dark:text-stone-100 dark:hover:bg-black/80"
+                    className="grid size-[clamp(1.5rem,22cqw,2rem)] cursor-pointer place-items-center rounded-full bg-white/90 text-stone-700 shadow-sm backdrop-blur transition hover:bg-white hover:text-stone-900 dark:bg-black/60 dark:text-stone-100 dark:hover:bg-black/80"
                     aria-label={t("canvas.sidePanel.inserted")}
                 >
-                    <Plus className="size-3.5" />
+                    <Plus className="size-[clamp(0.75rem,11cqw,1rem)]" />
                 </button>
                 <Popconfirm title={t("canvas.sidePanel.removeAssetTitle")} okText={t("canvas.sidePanel.remove")} cancelText={t("common.cancel")} okButtonProps={{ danger: true }} onConfirm={onRemove}>
                     <button
                         type="button"
-                        className="grid size-7 cursor-pointer place-items-center rounded-full bg-white/90 text-stone-700 shadow-sm backdrop-blur transition hover:bg-white hover:text-red-500 dark:bg-black/60 dark:text-stone-100 dark:hover:bg-black/80 dark:hover:text-red-400"
+                        className="grid size-[clamp(1.5rem,22cqw,2rem)] cursor-pointer place-items-center rounded-full bg-white/90 text-stone-700 shadow-sm backdrop-blur transition hover:bg-white hover:text-red-500 dark:bg-black/60 dark:text-stone-100 dark:hover:bg-black/80 dark:hover:text-red-400"
                         aria-label={t("canvas.sidePanel.removeAsset")}
                     >
-                        <Trash2 className="size-3.5" />
+                        <Trash2 className="size-[clamp(0.75rem,11cqw,1rem)]" />
                     </button>
                 </Popconfirm>
             </div>

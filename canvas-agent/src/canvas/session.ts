@@ -23,7 +23,7 @@ export type ConversationState = {
     error?: string;
 };
 type McpInventoryItem = { name: string; authStatus?: string };
-export const AGENT_PROTOCOL_VERSION = 7;
+export const AGENT_PROTOCOL_VERSION = 8;
 
 const SITE_TOOLS = new Set<ToolName>([
     "site_navigate",
@@ -42,13 +42,21 @@ const SITE_TOOLS = new Set<ToolName>([
 /** 需要路由到导演台页面客户端的工具；其余画布工具仍发给画布客户端。 */
 const DIRECTOR_TOOLS = new Set<ToolName>([
     "stage_list_presets",
+    "stage_list_models",
     "stage_get_state",
     "stage_place_character",
     "stage_place_prop",
     "stage_update_object",
     "stage_add_model",
+    "stage_add_crowd",
+    "stage_duplicate_object",
+    "stage_select_object",
+    "stage_undo",
     "stage_clear_scene",
     "stage_remove_object",
+    "camera_add",
+    "camera_set_active",
+    "camera_remove",
     "camera_set_keyframe",
     "camera_set_pose",
     "camera_update_keyframe",
@@ -56,9 +64,20 @@ const DIRECTOR_TOOLS = new Set<ToolName>([
     "camera_apply_preset",
     "camera_set_pacing",
     "camera_get_trajectory",
+    "viewport_set_aspect_ratio",
+    "scene_update",
+    "scene_set_panorama",
     "preview_render_frame",
     "preview_export_animatic",
+    "preview_playback",
 ]);
+
+/** stage_open 返回前等待导演台就绪的上限：需覆盖 iframe 加载、3D 场景初始化与 SSE 握手。 */
+const STAGE_OPEN_READY_WAIT_MS = 20000;
+/** 导演台工具在未就绪时的挂起等待上限，超过则报明确的加载中错误。 */
+const DIRECTOR_READY_WAIT_MS = 10000;
+/** 导演台就绪轮询间隔。 */
+const DIRECTOR_READY_POLL_MS = 200;
 
 /** 管理网页画布连接、状态、附件和工具请求。 */
 export class CanvasSession {
@@ -91,9 +110,19 @@ export class CanvasSession {
         };
     }
 
-    /** 获取当前目标网页的画布状态。 */
+    /** 获取画布工具应作用的画布快照（按画布目标客户端解析）。 */
     private get canvasState() {
-        return this.clients.has(this.targetClientId) ? this.canvasStates.get(this.targetClientId) || null : null;
+        const clientId = this.canvasTargetClientId();
+        return clientId ? this.canvasStates.get(clientId) || null : null;
+    }
+
+    /** 画布工具的目标网页：优先绑定/激活且真正带画布快照的页面，避免焦点在导演台页时路由错。 */
+    private canvasTargetClientId(): string {
+        const hasCanvas = (clientId: string) => this.clients.has(clientId) && Boolean(this.canvasStates.get(clientId)?.hasCanvas);
+        if (hasCanvas(this.boundClientId)) return this.boundClientId;
+        if (hasCanvas(this.activeClientId)) return this.activeClientId;
+        const focused = [...this.clients.keys()].filter(hasCanvas).sort((a, b) => (this.clientFocusOrder.get(b) || 0) - (this.clientFocusOrder.get(a) || 0))[0];
+        return focused || (this.clients.has(this.targetClientId) ? this.targetClientId : "");
     }
 
     /** 获取当前 turn 绑定或最近激活的网页客户端。 */
@@ -475,12 +504,18 @@ export class CanvasSession {
         if (!isToolName(name)) throw new Error(`未知工具：${String(name)}`);
         logger.info("MCP tool called", { name, input: rawInput, targetClientId: this.targetClientId });
         const input = parseToolInput(name, rawInput) as Record<string, unknown>;
+        if (name === "site_get_state") return this.siteState();
         if (DIRECTOR_TOOLS.has(name)) return await this.requestDirectorTool(name, input);
         if (SITE_TOOLS.has(name)) {
+            let result: unknown;
             // 没有画布页面时允许落到导演台页面执行（导演台桥支持 site_navigate 返回画布），其余工具会得到明确错误。
-            if (!this.clients.size && this.directorClients.size) return await this.requestDirectorTool(name, input);
-            if (!this.clients.size) throw new Error("当前没有已连接网页");
-            return await this.requestCanvasTool(name, input);
+            if (!this.clients.size && this.directorClients.size) result = await this.requestDirectorTool(name, input);
+            else {
+                if (!this.clients.size) throw new Error("当前没有已连接网页");
+                result = await this.requestCanvasTool(name, input);
+            }
+            if (name === "stage_open") return await this.settleStageOpen(result);
+            return result;
         }
         const readTool = ["canvas_get_state", "canvas_get_selection", "canvas_export_snapshot", "shot_list"].includes(name);
         if (readTool && (!this.clients.size || !this.canvasState)) throw new Error("当前没有已连接画布");
@@ -494,6 +529,19 @@ export class CanvasSession {
         if (!this.clients.size) throw new Error("当前没有已连接画布");
         const request = buildCanvasToolRequest(name, input, this.canvasState);
         return await this.requestCanvasTool(request.name, request.input);
+    }
+
+    /** 页面级状态快照：告诉模型用户当前所在页面与画布/导演台两端连接情况；纯服务端作答，不路由到任何网页。 */
+    private siteState() {
+        const stateOf = (clientId: string) => this.canvasStates.get(clientId);
+        return {
+            activePage: stateOf(this.targetClientId)?.page || "unknown",
+            pages: [...this.clients.keys()].map((clientId) => {
+                const state = stateOf(clientId);
+                return { clientId, page: state?.page || "unknown", focused: clientId === this.targetClientId, hasCanvas: Boolean(state?.hasCanvas), projectId: state?.projectId || null, title: state?.title || null, nodeCount: state?.nodes?.length || 0 };
+            }),
+            director: { ready: [...this.directorClients.values()].some((item) => item.ready), activeDeskId: this.activeDeskId || null, connectedDesks: this.directorClients.size },
+        };
     }
 
     /** 将当前 turn 的附件转换为画布图片节点。 */
@@ -511,6 +559,8 @@ export class CanvasSession {
             const node = {
                 id: `image-${crypto.randomUUID()}`,
                 attachmentId: attachment.id,
+                // 附件归属上传页；跨页执行（如焦点在导演台页）时执行方按 owner 取附件。
+                owner: attachment.clientId,
                 title: attachment.name,
                 position: { x: direction === "row" ? x + offset : x, y: direction === "column" ? y + offset : y },
                 width: size.width,
@@ -523,21 +573,36 @@ export class CanvasSession {
         return { nodes: nodes.map(({ id, attachmentId, title }) => ({ id, attachmentId, title })) };
     }
 
-    /** 向目标网页发送工具请求并等待调用结果。 */
+    /** 向画布目标网页发送工具请求并等待调用结果。 */
     private async requestCanvasTool(name: ToolName, input: Record<string, unknown>) {
-        return await this.requestClientTool(this.targetClientId, name, input);
+        return await this.requestClientTool(this.canvasTargetClientId(), name, input);
     }
 
-    /** 向导演台页面发送工具请求并等待调用结果；只路由到已就绪的客户端，优先最近 stage_open 的导演台。 */
+    /** 向导演台页面发送工具请求并等待调用结果；未就绪时先挂起等待消化加载窗口，仍只路由到已就绪客户端，优先最近 stage_open 的导演台。 */
     private async requestDirectorTool(name: ToolName, input: Record<string, unknown>) {
+        if (!this.directorClients.size) throw new Error("导演台尚未打开，请先用 stage_open 打开导演台再调用本工具");
+        if (!(await this.waitForDirectorReady("", DIRECTOR_READY_WAIT_MS))) throw new Error("导演台页面已连接但长时间未就绪（可能是服务重启后未重新上报），请刷新导演台页面或重新 stage_open 后重试");
         const entries = [...this.directorClients.entries()].filter(([, item]) => item.ready);
-        if (!entries.length) throw new Error("导演台仍在后台加载中，请稍等几秒后重试（未就绪的页面不参与路由）");
         const active = entries.filter(([, item]) => item.deskId && item.deskId === this.activeDeskId);
         const pool = active.length ? active : entries;
         const latest = Math.max(...pool.map(([, item]) => item.version));
         const entry = pool.filter(([, item]) => item.version === latest).pop();
         if (!entry) throw new Error("当前没有已连接的导演台页面");
         return await this.requestClientTool(entry[0], name, input);
+    }
+
+    /** 在时限内轮询等待导演台客户端就绪（可指定 deskId），把 iframe 加载窗口消化在服务端。 */
+    private async waitForDirectorReady(deskId: string, timeoutMs: number) {
+        const ready = () => [...this.directorClients.values()].some((item) => item.ready && (!deskId || item.deskId === deskId));
+        for (let deadline = Date.now() + timeoutMs; !ready() && Date.now() < deadline;) await new Promise((resolve) => setTimeout(resolve, DIRECTOR_READY_POLL_MS));
+        return ready();
+    }
+
+    /** stage_open 后等待对应导演台就绪再返回，避免后续工具调用撞上加载窗口；超时则带警告返回。 */
+    private async settleStageOpen(result: unknown) {
+        const deskId = String((result as { deskId?: string } | null)?.deskId || "");
+        if (!deskId || (await this.waitForDirectorReady(deskId, STAGE_OPEN_READY_WAIT_MS))) return result;
+        return { ...(result as Record<string, unknown>), deskReady: false, warning: "导演台页面尚未上报就绪，紧接着的导演台工具调用可能仍需重试" };
     }
 
     /** 导演台编辑器完全加载后的就绪上报；只有就绪的客户端参与工具路由。 */

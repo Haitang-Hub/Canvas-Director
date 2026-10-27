@@ -11,6 +11,8 @@ import { flushBrowserChat } from "@/services/agent-chat-storage";
 
 const DOCK_SNAP_DISTANCE = 56;
 const FLOAT_HEIGHT = Math.min(typeof window === "undefined" ? 680 : window.innerHeight * 0.72, 680);
+const FLOAT_MIN_WIDTH = 320;
+const FLOAT_MIN_HEIGHT = 320;
 
 function defaultLayout(context: AgentPageContext): AgentPanelLayout {
     if (context === "director") {
@@ -35,6 +37,8 @@ export function AgentPanel({ context = "canvas" }: { context?: AgentPageContext 
     const dragRef = useRef<{ pointerId: number; offsetX: number; offsetY: number } | null>(null);
     const layout = savedLayout ?? defaultLayout(context);
     const docked = layout.mode !== "float";
+    const floatWidth = layout.width ?? AGENT_PANEL_FLOAT_WIDTH;
+    const floatHeight = layout.height ?? FLOAT_HEIGHT;
 
     useEffect(() => {
         setAgentState({ pageContext: context });
@@ -44,8 +48,8 @@ export function AgentPanel({ context = "canvas" }: { context?: AgentPageContext 
     // 唤出保险：持久化的浮动位置若落在当前视口外（换窗口/屏幕尺寸后），自动拉回可见区域
     useEffect(() => {
         if (!panelOpen || docked) return;
-        const x = Math.min(Math.max(layout.x, 8), Math.max(8, window.innerWidth - AGENT_PANEL_FLOAT_WIDTH - 8));
-        const y = Math.min(Math.max(layout.y, 8), Math.max(8, window.innerHeight - FLOAT_HEIGHT - 8));
+        const x = Math.min(Math.max(layout.x, 8), Math.max(8, window.innerWidth - floatWidth - 8));
+        const y = Math.min(Math.max(layout.y, 8), Math.max(8, window.innerHeight - floatHeight - 8));
         if (x === layout.x && y === layout.y) return;
         const next = { ...layout, x, y };
         setAgentState({ panelLayout: next });
@@ -79,7 +83,7 @@ export function AgentPanel({ context = "canvas" }: { context?: AgentPageContext 
     const onHeaderPointerMove = (event: ReactPointerEvent<HTMLElement>) => {
         const drag = dragRef.current;
         if (!drag || drag.pointerId !== event.pointerId) return;
-        const x = Math.min(Math.max(event.clientX - drag.offsetX, -AGENT_PANEL_FLOAT_WIDTH + 80), window.innerWidth - 80);
+        const x = Math.min(Math.max(event.clientX - drag.offsetX, -floatWidth + 80), window.innerWidth - 80);
         const y = Math.min(Math.max(event.clientY - drag.offsetY, 0), window.innerHeight - 48);
         updateLayout({ mode: "float", x, y });
     };
@@ -94,8 +98,8 @@ export function AgentPanel({ context = "canvas" }: { context?: AgentPageContext 
         setDragging(false);
         // 磁性吸附：接近左右边缘时停靠
         if (left < DOCK_SNAP_DISTANCE) updateLayout({ mode: "left", x: 0, y: 0 });
-        else if (left + AGENT_PANEL_FLOAT_WIDTH > window.innerWidth - DOCK_SNAP_DISTANCE) updateLayout({ mode: "right", x: 0, y: 0 });
-        else updateLayout({ mode: "float", x: Math.min(Math.max(left, 8), window.innerWidth - AGENT_PANEL_FLOAT_WIDTH - 8), y: Math.min(Math.max(top, 8), window.innerHeight - 56) });
+        else if (left + floatWidth > window.innerWidth - DOCK_SNAP_DISTANCE) updateLayout({ mode: "right", x: 0, y: 0 });
+        else updateLayout({ mode: "float", x: Math.min(Math.max(left, 8), window.innerWidth - floatWidth - 8), y: Math.min(Math.max(top, 8), window.innerHeight - 56) });
     };
 
     const startResize = (event: ReactPointerEvent<HTMLButtonElement>) => {
@@ -118,6 +122,31 @@ export function AgentPanel({ context = "canvas" }: { context?: AgentPageContext 
         window.addEventListener("pointerup", onUp);
     };
 
+    // 浮动态右下角手柄：等比自由调整宽高，左上角锚点不变
+    const startCornerResize = (event: ReactPointerEvent<HTMLButtonElement>) => {
+        event.preventDefault();
+        const startX = event.clientX;
+        const startY = event.clientY;
+        const startWidth = floatWidth;
+        const startHeight = floatHeight;
+        let next: AgentPanelLayout | null = null;
+        const onMove = (moveEvent: PointerEvent) => {
+            const width = Math.min(window.innerWidth - layout.x - 8, Math.max(FLOAT_MIN_WIDTH, startWidth + moveEvent.clientX - startX));
+            const height = Math.min(window.innerHeight - layout.y - 8, Math.max(FLOAT_MIN_HEIGHT, startHeight + moveEvent.clientY - startY));
+            next = { ...layout, width, height };
+            setAgentState({ panelLayout: next });
+        };
+        const onUp = () => {
+            if (next) savePanelLayout(next);
+            window.removeEventListener("pointermove", onMove);
+            window.removeEventListener("pointerup", onUp);
+            setResizing(false);
+        };
+        setResizing(true);
+        window.addEventListener("pointermove", onMove);
+        window.addEventListener("pointerup", onUp);
+    };
+
     if (!panelMounted) return null;
 
     const shell = {
@@ -128,7 +157,7 @@ export function AgentPanel({ context = "canvas" }: { context?: AgentPageContext 
     const translucent = glassOpacity < 100;
     const positionStyle: CSSProperties =
         layout.mode === "float"
-            ? { left: layout.x, top: layout.y, width: AGENT_PANEL_FLOAT_WIDTH, height: FLOAT_HEIGHT }
+            ? { left: layout.x, top: layout.y, width: floatWidth, height: floatHeight }
             : layout.mode === "left"
                 ? { left: 0, top: 0, bottom: 0, width }
                 : { right: 0, top: 0, bottom: 0, width };
@@ -153,7 +182,19 @@ export function AgentPanel({ context = "canvas" }: { context?: AgentPageContext 
                         onPointerDown={startResize}
                         aria-label={t("agent.panel.resize")}
                     />
-                ) : null}
+                ) : (
+                    <button
+                        type="button"
+                        className="absolute bottom-0 right-0 z-40 flex size-5 cursor-nwse-resize items-end justify-end rounded-br-2xl p-0.5 opacity-50 transition-opacity hover:opacity-100"
+                        style={{ color: theme.node.stroke }}
+                        onPointerDown={startCornerResize}
+                        aria-label={t("agent.panel.resizeCorner")}
+                    >
+                        <svg width="10" height="10" viewBox="0 0 10 10" fill="none" aria-hidden>
+                            <path d="M9 1L1 9M9 5L5 9" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+                        </svg>
+                    </button>
+                )}
                 <div className="flex h-full min-h-0 flex-col">
                     <LocalAgentPanel embedded />
                 </div>

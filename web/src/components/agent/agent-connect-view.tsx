@@ -1,7 +1,7 @@
 import { Fragment } from "react";
 import { App, Button, Input, Segmented, Tooltip } from "antd";
 import copyToClipboard from "copy-to-clipboard";
-import { Copy, Cpu, KeyRound, Link2, PlugZap, Settings2 } from "lucide-react";
+import { Copy, KeyRound, Link2, PlugZap, Settings2 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
 import { canvasThemes } from "@/lib/canvas-theme";
@@ -65,7 +65,7 @@ export function AgentConnectView({
                         <span className="shrink-0 text-[11px]" style={{ color: theme.node.muted }}>
                             {label}
                         </span>
-                        <code className="min-w-0 flex-1 overflow-x-auto whitespace-nowrap text-[11px] leading-5">{command}</code>
+                        <code className="min-w-0 flex-1 break-all text-[11px] leading-5">{command}</code>
                         <Tooltip title={t("agent.connect.copyCommand")}>
                             <Button size="small" type="text" className="!h-6 !w-6 !min-w-6" icon={<Copy className="size-3.5" />} onClick={() => copyCommand(command)} />
                         </Tooltip>
@@ -102,7 +102,6 @@ export function AgentConnectView({
                     </div>
                     {engine === "browser" ? (
                         <div className="mt-3 flex flex-wrap items-center gap-2 border-t pt-3" style={{ borderColor: theme.node.stroke }}>
-                            <Cpu className="size-4 shrink-0" style={{ color: theme.node.muted }} />
                             <AgentTextModelSelect theme={theme} />
                             <Button size="small" className="!h-8" icon={<Settings2 className="size-3.5" />} onClick={() => openConfigDialog(false, "channels")}>
                                 {t("agent.connect.openModelConfig")}
@@ -124,7 +123,7 @@ export function AgentConnectView({
                                             </div>
                                             {command ? (
                                                 <div className="mt-2 flex items-center gap-2 rounded-md border bg-transparent px-2 py-1.5" style={{ borderColor: theme.node.stroke, color: theme.node.text }}>
-                                                    <code className="min-w-0 flex-1 overflow-x-auto whitespace-nowrap text-[11px] leading-5">{command}</code>
+                                                    <code className="min-w-0 flex-1 break-all text-[11px] leading-5">{command}</code>
                                                     <Tooltip title={t("agent.connect.copyCommand")}>
                                                         <Button size="small" type="text" className="!h-6 !w-6 !min-w-6" icon={<Copy className="size-3.5" />} onClick={() => copyCommand(command)} />
                                                     </Tooltip>

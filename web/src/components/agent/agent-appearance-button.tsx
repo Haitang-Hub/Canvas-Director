@@ -9,11 +9,18 @@ import { useAgentStore } from "@/stores/use-agent-store";
 export function AgentAppearanceButton({ theme }: { theme: (typeof canvasThemes)[keyof typeof canvasThemes] }) {
     const { t } = useTranslation();
     const glassOpacity = useAgentStore((state) => state.glassOpacity);
+    const popover = useAgentStore((state) => state.composerPopover);
     const setAgentState = useAgentStore((state) => state.setAgentState);
     return (
         <Popover
             trigger="click"
             placement="topRight"
+            open={popover === "appearance"}
+            onOpenChange={(next) => {
+                // 外部点击关闭晚于模型下拉的打开（pointerdown 先于 mousedown/click），被顶掉时不要清掉对方的状态
+                if (!next && useAgentStore.getState().composerPopover !== "appearance") return;
+                setAgentState({ composerPopover: next ? "appearance" : "" });
+            }}
             content={
                 <div className="w-60 p-1">
                     <div className="mb-2 text-sm font-medium">{t("agent.composer.appearanceTitle")}</div>

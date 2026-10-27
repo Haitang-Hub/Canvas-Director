@@ -8,7 +8,7 @@
 import type { NavigateFunction } from "react-router-dom";
 
 import i18n from "@/i18n";
-import { runDirectorTool } from "@/pages/director/editor/hooks/use-director-agent-bridge";
+import { runDirectorTool, applyCanvasOpsFromDirector } from "@/pages/director/editor/hooks/use-director-agent-bridge";
 import { randomId } from "@/lib/utils";
 import type { AgentChatItem } from "@/stores/use-agent-store";
 import { useAgentStore } from "@/stores/use-agent-store";
@@ -47,23 +47,21 @@ function toLlmMessages(history: AgentChatItem[], context: "canvas" | "director")
     return llm;
 }
 
-function summarizeToolResult(result: unknown): string {
-    let text: string;
-    if (result && typeof result === "object") {
-        const record = result as Record<string, unknown>;
-        const parts = Object.entries(record)
-            .filter(([, value]) => value !== undefined && value !== null)
-            .slice(0, 6)
-            .map(([key, value]) => `${key}=${typeof value === "object" ? JSON.stringify(value) : String(value)}`);
-        text = parts.join(", ");
-    } else {
-        text = String(result);
-    }
-    return text.length > 300 ? `${text.slice(0, 300)}…` : text;
-}
+/** 导演台页上下文追加的跨页工具：读画布列表、写回画布、切换页面（复用画布上下文的工具定义）。 */
+const DIRECTOR_CROSS_PAGE_TOOLS = CANVAS_BROWSER_TOOLS.filter((tool) => ["site_navigate", "canvas_apply_ops", "canvas_list_projects"].includes(tool.function.name));
 
 async function runBrowserTool(name: string, input: Record<string, unknown>, context: "canvas" | "director", navigate: NavigateFunction): Promise<unknown> {
-    if (context === "director") return await runDirectorTool(name, input);
+    if (context === "director") {
+        // 跨页工具优先：导演台页上也能读画布列表、把 ops 写回来源画布（经宿主页应用）或切换页面。
+        if (name === "canvas_apply_ops") return await applyCanvasOpsFromDirector(Array.isArray(input.ops) ? input.ops : []);
+        if (name === "site_navigate") {
+            const path = String(input.path || "/");
+            navigate(path);
+            return { ok: true, path };
+        }
+        if (isSiteTool(name)) return await runSiteTool(name, input, navigate, { canvasSnapshot: null });
+        return await runDirectorTool(name, input);
+    }
     if (name === "canvas_apply_ops") {
         const ops = Array.isArray(input.ops) ? (input.ops as never[]) : [];
         const contextRef = useAgentStore.getState().canvasContext;
@@ -110,7 +108,7 @@ export async function sendBrowserPrompt(prompt: string, navigate: NavigateFuncti
     try {
         const llmMessages = toLlmMessages(useAgentStore.getState().browserMessages.filter((item) => item.threadId === threadId), context);
         for (let round = 0; round < MAX_TOOL_ROUNDS; round += 1) {
-            const { content, toolCalls } = await callAgentLlm(llmMessages, context === "director" ? DIRECTOR_AGENT_TOOLS : CANVAS_BROWSER_TOOLS, signal);
+            const { content, toolCalls } = await callAgentLlm(llmMessages, context === "director" ? [...DIRECTOR_AGENT_TOOLS, ...DIRECTOR_CROSS_PAGE_TOOLS] : CANVAS_BROWSER_TOOLS, signal);
             const assistantText = content.trim();
             const assistantItem: AgentChatItem = {
                 id: randomId(),
@@ -145,7 +143,7 @@ export async function sendBrowserPrompt(prompt: string, navigate: NavigateFuncti
                     turnId,
                     role: "tool",
                     title: toolLabel(call.name),
-                    text: runError ? (runError instanceof Error ? runError.message : String(runError)) : summarizeToolResult(result),
+                    text: runError ? (runError instanceof Error ? runError.message : String(runError)) : "",
                     detail: { kind: "tool", status: runError ? "error" : "completed", toolCallId: call.id, output: output.length > TOOL_OUTPUT_MAX_CHARS ? `${output.slice(0, TOOL_OUTPUT_MAX_CHARS)}…` : output },
                 };
                 pushMessages([toolItem]);

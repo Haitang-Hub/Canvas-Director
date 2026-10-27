@@ -5,7 +5,7 @@ import { useTranslation } from "react-i18next";
 import { canvasThemes } from "@/lib/canvas-theme";
 import { summarizeCanvasAgentOps } from "@/lib/canvas/canvas-agent-ops";
 import { useAgentStore, type AgentChatItem, type AgentPendingApproval, type AgentPendingToolCall, type AgentTokenUsage } from "@/stores/use-agent-store";
-import { AgentApprovalCard, AgentChatMessage, AgentCommandGroup, AgentPendingToolCard, AgentToolCard, AgentWorkingMessage } from "./agent-chat-message";
+import { AgentApprovalCard, AgentChatMessage, AgentCommandGroup, AgentPendingToolCard, AgentToolCard, AgentToolRunGroup, AgentWorkingMessage } from "./agent-chat-message";
 import { agentMessageToChatMessage, currentPlanMessage, isPlanMessage, latestPlanMessage, toolCallDetail, toolName, workingActivity } from "./agent-event-formatters";
 import { AgentScrollToBottom } from "./agent-scroll-to-bottom";
 
@@ -37,7 +37,7 @@ export function AgentChatTimeline({
     const messages = useAgentStore((state) => (engine === "browser" ? state.browserMessages : state.messages));
     const bootstrapStatus = useAgentStore((state) => (engine === "browser" ? null : state.bootstrapStatus));
     const mcpStartupStatuses = useAgentStore((state) => state.mcpStartupStatuses);
-    const timeline = useMemo(() => groupTimelineMessages(messages), [messages]);
+    const timeline = useMemo(() => groupTimelineMessages(messages, engine === "browser"), [messages, engine]);
     const listRef = useRef<HTMLDivElement>(null);
     const contentRef = useRef<HTMLDivElement>(null);
     const followMessagesRef = useRef(true);
@@ -90,7 +90,9 @@ export function AgentChatTimeline({
                     ) : null}
                     {timeline.map((entry) => entry.type === "commands"
                         ? <AgentCommandGroupRow key={entry.id} items={entry.items} theme={theme} />
-                        : <AgentChatMessageRow key={entry.item.id} item={entry.item} theme={theme} />)}
+                        : entry.type === "tools"
+                            ? <AgentToolRunGroupRow key={entry.id} items={entry.items} theme={theme} />
+                            : <AgentChatMessageRow key={entry.item.id} item={entry.item} theme={theme} />)}
                     {pendingTool ? (
                         <AgentPendingToolCard
                             summary={summarizeCanvasAgentOps(pendingTool.input?.ops || []) || toolName(pendingTool.name)}
@@ -144,36 +146,73 @@ const AgentCommandGroupRow = memo(function AgentCommandGroupRow({ items, theme }
     );
 });
 
-type AgentTimelineEntry = { type: "message"; item: AgentChatItem } | { type: "commands"; id: string; items: AgentChatItem[] };
+const AgentToolRunGroupRow = memo(function AgentToolRunGroupRow({ items, theme }: { items: AgentChatItem[]; theme: (typeof canvasThemes)[keyof typeof canvasThemes] }) {
+    return (
+        <div style={historyMessageStyle}>
+            <AgentToolRunGroup items={items} theme={theme} />
+        </div>
+    );
+});
 
-function groupTimelineMessages(messages: AgentChatItem[]) {
+type AgentTimelineEntry = { type: "message"; item: AgentChatItem } | { type: "commands"; id: string; items: AgentChatItem[] } | { type: "tools"; id: string; items: AgentChatItem[] };
+
+function groupTimelineMessages(messages: AgentChatItem[], groupBrowserTools: boolean) {
     const timeline: AgentTimelineEntry[] = [];
     let commands: AgentChatItem[] = [];
+    let tools: AgentChatItem[] = [];
     let commandScope = "";
+    let toolScope = "";
     const flushCommands = () => {
         if (!commands.length) return;
         timeline.push({ type: "commands", id: `commands:${commands[0].id}`, items: commands });
         commands = [];
         commandScope = "";
     };
+    const flushTools = () => {
+        if (!tools.length) return;
+        timeline.push({ type: "tools", id: `tools:${tools[0].id}`, items: tools });
+        tools = [];
+        toolScope = "";
+    };
+    const flushAll = () => {
+        flushCommands();
+        flushTools();
+    };
     messages.forEach((item) => {
         if (isPlanMessage(item)) return;
+        if (isEmptyAssistantCarrier(item)) return;
+        const scope = item.threadId && item.turnId ? `${item.threadId}\0${item.turnId}` : item.id;
         if (isCommandMessage(item)) {
-            const scope = item.threadId && item.turnId ? `${item.threadId}\0${item.turnId}` : item.id;
             if (commands.length && scope !== commandScope) flushCommands();
             commands.push(item);
             commandScope = scope;
             return;
         }
-        flushCommands();
+        if (groupBrowserTools && isBrowserToolMessage(item)) {
+            flushCommands();
+            if (tools.length && scope !== toolScope) flushTools();
+            tools.push(item);
+            toolScope = scope;
+            return;
+        }
+        flushAll();
         timeline.push({ type: "message", item });
     });
-    flushCommands();
+    flushAll();
     return timeline;
 }
 
 function isCommandMessage(item: AgentChatItem) {
     return item.role === "tool" && item.detail && typeof item.detail === "object" && (item.detail as { kind?: unknown }).kind === "command";
+}
+
+function isBrowserToolMessage(item: AgentChatItem) {
+    return item.role === "tool" && item.detail && typeof item.detail === "object" && (item.detail as { kind?: unknown }).kind === "tool";
+}
+
+/** 内置引擎里只为携带 tool_calls 的空 assistant 载体消息，不单独渲染成空白气泡。 */
+function isEmptyAssistantCarrier(item: AgentChatItem) {
+    return item.role === "assistant" && !item.text.trim() && Array.isArray((item.detail as { toolCalls?: unknown } | undefined)?.toolCalls);
 }
 
 export function AgentUsageBar({ usage, theme }: { usage: AgentTokenUsage; theme: (typeof canvasThemes)[keyof typeof canvasThemes] }) {

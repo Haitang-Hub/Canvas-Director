@@ -1,6 +1,6 @@
 import i18n from "@/i18n";
 import type { CanvasAgentSnapshot } from "@/lib/canvas/canvas-agent-ops";
-import type { AgentReasoningEffort } from "@/stores/use-agent-store";
+import { useAgentStore, type AgentReasoningEffort } from "@/stores/use-agent-store";
 
 type AgentConfigResponse = { ok?: boolean; protocolVersion?: number; url?: string; token?: string; hasToken?: boolean };
 const AGENT_MESSAGE_ASSET_PATTERN = /^agent-asset:([a-f0-9]{64})\/([a-f0-9]{64}\.(?:gif|jpe?g|png|webp))$/;
@@ -46,7 +46,8 @@ export async function postState(endpoint: string, token: string, clientId: strin
         const response = await fetch(`${endpoint}/canvas/state?token=${encodeURIComponent(token)}&clientId=${encodeURIComponent(clientId)}`, {
             method: "POST",
             headers: { "content-type": "application/json" },
-            body: JSON.stringify(snapshot ? { ...snapshot, hasCanvas: true } : { hasCanvas: false }),
+            // 页面标识随快照上报，服务端据此区分画布页/导演台页并做工具路由。
+            body: JSON.stringify({ page: useAgentStore.getState().pageContext, route: window.location.pathname, ...(snapshot ? { ...snapshot, hasCanvas: true } : { hasCanvas: false }) }),
         });
         return response.ok;
     } catch {

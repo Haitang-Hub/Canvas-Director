@@ -7,7 +7,7 @@ import { useTranslation } from "react-i18next";
 import i18n from "@/i18n";
 import { useCopyText } from "@/hooks/use-copy-text";
 import { canvasThemes } from "@/lib/canvas-theme";
-import { useAgentStore, type AgentCanvasReference, type AgentPendingApproval, type AgentSkillReference } from "@/stores/use-agent-store";
+import { useAgentStore, type AgentCanvasReference, type AgentChatItem, type AgentPendingApproval, type AgentSkillReference } from "@/stores/use-agent-store";
 import { resolveAgentMessageAssetUrl, revealAgentLocalFile } from "@/services/api/canvas-agent";
 import { AgentCanvasReferencePreview, canvasReferenceIcon, canvasReferenceKindLabel } from "./agent-canvas-reference-preview";
 import { agentInlineTokenClass, agentInlineTokenIconClass, agentInlineTokenMediaClass, agentReferenceMarker, parseAgentInlineTokens } from "./agent-chat-inline-tokens";
@@ -358,6 +358,36 @@ function AgentCommandEntry({ item, index, theme }: { item: AgentCommandItem; ind
                 : <div className="flex min-w-0 items-center gap-2 py-2 text-left">{content}</div>}
             {view && open ? <div id={detailId} className="pb-2 pl-6"><AgentDetailBlock detail={view} theme={theme} /></div> : null}
         </div>
+    );
+}
+
+/** 内置引擎的「执行过程」分组：一轮里的工具调用折叠成列表，只显示工具名与状态，不展示原始返回。 */
+export function AgentToolRunGroup({ items, theme }: { items: AgentChatItem[]; theme: (typeof canvasThemes)[keyof typeof canvasThemes] }) {
+    const { t } = useTranslation();
+    return (
+        <details className="group min-w-0 text-left">
+            <summary className="cursor-pointer list-none py-1">
+                <div className="flex min-w-0 items-center gap-1.5 text-sm" style={{ color: theme.node.muted }}>
+                    <ChevronRight className="size-3.5 shrink-0 transition-transform group-open:rotate-90" />
+                    <span>{t("agent.message.toolRunSteps", { count: items.length })}</span>
+                </div>
+            </summary>
+            <div className="ml-1.5 mt-1 space-y-0.5 border-l pl-3" style={{ borderColor: theme.node.stroke }}>
+                {items.map((item) => {
+                    const failed = ["failed", "error"].includes(String(objectField(item.detail, "status") || "").toLowerCase());
+                    return (
+                        <div key={item.id} className="py-1 text-sm leading-5">
+                            <div className="flex min-w-0 items-center gap-2">
+                                {failed ? <XCircle className="size-3.5 shrink-0 text-red-600" /> : <CheckCircle2 className="size-3.5 shrink-0 text-emerald-600" />}
+                                <span className="min-w-0 flex-1 truncate" style={{ color: theme.node.text }}>{t("agent.eventExtra.toolNamed", { name: item.title || t("agent.eventExtra.toolOperation") })}</span>
+                                <span className="shrink-0 text-[11px]" style={{ color: failed ? "#dc2626" : "#16a34a" }}>{t(failed ? "agent.message.failed" : "agent.message.completed")}</span>
+                            </div>
+                            {failed && item.text ? <div className="mt-0.5 break-words pl-5.5 text-xs text-red-600/90">{item.text}</div> : null}
+                        </div>
+                    );
+                })}
+            </div>
+        </details>
     );
 }
 
