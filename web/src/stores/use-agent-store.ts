@@ -89,8 +89,8 @@ type AgentStore = {
     silentConnect: boolean;
     fragmentBootstrap: boolean;
     prompt: string;
-    /** 输入区当前打开的弹层（模型下拉 / 外观设置），互斥：打开一个时顶掉另一个。 */
-    composerPopover: "" | "model" | "appearance";
+    /** 输入区当前打开的弹层（模型下拉 / 推理力度 / 工具确认 / 权限模式 / 外观设置），互斥：打开一个时顶掉另一个。 */
+    composerPopover: "" | "model" | "reasoning" | "tools" | "permission" | "appearance";
     attachments: AgentAttachment[];
     canvasReferences: CanvasResourceReference[];
     sending: boolean;

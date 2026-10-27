@@ -7,6 +7,7 @@ import { buildApiUrl, resolveModelRequestConfig, useConfigStore } from "@/stores
 
 export type AgentLlmMessage =
     | { role: "system" | "user" | "assistant"; content: string; tool_calls?: Array<{ id: string; type: "function"; function: { name: string; arguments: string } }> }
+    | { role: "user"; content: Array<{ type: "text"; text: string } | { type: "image_url"; image_url: { url: string } }> }
     | { role: "tool"; tool_call_id: string; content: string };
 
 type ChatCompletionResponse = {

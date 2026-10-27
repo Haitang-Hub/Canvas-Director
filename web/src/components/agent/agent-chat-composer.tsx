@@ -1,4 +1,4 @@
-import { useRef, useState, type ReactNode } from "react";
+import { useRef, type ReactNode } from "react";
 import { Button, Dropdown, Tooltip } from "antd";
 import { ArrowUp, Check, ChevronUp, Cpu, Gauge, Hand, ImagePlus, LoaderCircle, RefreshCw, ShieldAlert, ShieldCheck, ShieldOff, Square, X } from "lucide-react";
 import { useTranslation } from "react-i18next";
@@ -114,13 +114,18 @@ function AgentModelControls({ models, model, reasoningEffort, onModelChange, onR
     const { t } = useTranslation();
     const current = models.find((item) => item.model === model) || models[0];
     const effortLabel = (effort: AgentReasoningEffort | "") => t(`agent.composer.effort.${effort || current?.defaultReasoningEffort || "medium"}`);
-    const [modelOpen, setModelOpen] = useState(false);
-    const [reasoningOpen, setReasoningOpen] = useState(false);
+    const popover = useAgentStore((state) => state.composerPopover);
+    const setAgentState = useAgentStore((state) => state.setAgentState);
+    // 外部点击关闭晚于别的弹层打开（pointerdown 先于 mousedown/click），被顶掉时不要清掉对方的状态
+    const composerOpenChange = (key: "model" | "reasoning") => (next: boolean) => {
+        if (!next && useAgentStore.getState().composerPopover !== key) return;
+        setAgentState({ composerPopover: next ? key : "" });
+    };
     return (
         <div className="flex min-w-0 items-center gap-1">
-            <Tooltip title={t("agent.composer.model", { model: current.displayName || current.model })} placement="top" open={modelOpen ? false : undefined}>
+            <Tooltip title={t("agent.composer.model", { model: current.displayName || current.model })} placement="top" open={popover === "model" ? false : undefined}>
                 <span className="inline-flex shrink-0">
-                    <Select value={model} open={modelOpen} onOpenChange={setModelOpen} onValueChange={onModelChange}>
+                    <Select value={model} open={popover === "model"} onOpenChange={composerOpenChange("model")} onValueChange={onModelChange}>
                         <SelectTrigger hideChevron className="h-9 w-9 min-w-9 justify-center gap-0 rounded-full border-0 bg-transparent px-0 text-xs font-medium shadow-none hover:bg-black/5 focus:ring-0 @min-[660px]:w-auto @min-[660px]:min-w-36 @min-[660px]:max-w-36 @min-[660px]:justify-start @min-[660px]:gap-1.5 @min-[660px]:px-2.5 dark:bg-transparent dark:hover:bg-white/10" aria-label={t("agent.composer.selectModel", { model: current.displayName || current.model })}>
                             <Cpu className="size-3.5 shrink-0 opacity-70" />
                             <span className="hidden min-w-0 flex-1 truncate text-left @min-[660px]:inline">{current.displayName || current.model}</span>
@@ -133,9 +138,9 @@ function AgentModelControls({ models, model, reasoningEffort, onModelChange, onR
                 </span>
             </Tooltip>
             {current.supportedReasoningEfforts.length > 0 ? (
-            <Tooltip title={t("agent.composer.reasoning", { effort: effortLabel(reasoningEffort) })} placement="top" open={reasoningOpen ? false : undefined}>
+            <Tooltip title={t("agent.composer.reasoning", { effort: effortLabel(reasoningEffort) })} placement="top" open={popover === "reasoning" ? false : undefined}>
                 <span className="inline-flex shrink-0">
-                    <Select value={reasoningEffort || current?.defaultReasoningEffort || "medium"} open={reasoningOpen} onOpenChange={setReasoningOpen} onValueChange={(value) => onReasoningEffortChange(value as AgentReasoningEffort)}>
+                    <Select value={reasoningEffort || current?.defaultReasoningEffort || "medium"} open={popover === "reasoning"} onOpenChange={composerOpenChange("reasoning")} onValueChange={(value) => onReasoningEffortChange(value as AgentReasoningEffort)}>
                         <SelectTrigger hideChevron className="h-9 w-9 min-w-9 justify-center gap-0 rounded-full border-0 bg-transparent px-0 text-xs font-medium shadow-none hover:bg-black/5 focus:ring-0 @min-[660px]:w-auto @min-[660px]:min-w-[4.5rem] @min-[660px]:justify-start @min-[660px]:gap-1.5 @min-[660px]:px-2.5 dark:bg-transparent dark:hover:bg-white/10" aria-label={t("agent.composer.selectReasoning", { effort: effortLabel(reasoningEffort) })}>
                             <Gauge className="size-3.5 opacity-70" />
                             <span className="hidden @min-[660px]:inline">{effortLabel(reasoningEffort)}</span>
@@ -160,15 +165,20 @@ function PermissionModeMenu({ permissionMode, theme, onChange }: { permissionMod
         { key: "full", title: t("agent.composer.permission.full"), shortTitle: t("agent.composer.permission.fullShort"), description: t("agent.composer.permission.fullDescription"), icon: <ShieldOff className="size-3.5" /> },
     ];
     const current = permissionOptions.find((item) => item.key === permissionMode) || permissionOptions[0];
-    const [open, setOpen] = useState(false);
+    const popover = useAgentStore((state) => state.composerPopover);
+    const setAgentState = useAgentStore((state) => state.setAgentState);
+    const openChange = (next: boolean) => {
+        if (!next && useAgentStore.getState().composerPopover !== "permission") return;
+        setAgentState({ composerPopover: next ? "permission" : "" });
+    };
     return (
-        <Tooltip title={t("agent.composer.permissionLabel", { mode: current.shortTitle })} placement="top" open={open ? false : undefined}>
+        <Tooltip title={t("agent.composer.permissionLabel", { mode: current.shortTitle })} placement="top" open={popover === "permission" ? false : undefined}>
             <span className="inline-flex shrink-0">
                 <Dropdown
                     trigger={["click"]}
                     placement="topLeft"
-                    open={open}
-                    onOpenChange={setOpen}
+                    open={popover === "permission"}
+                    onOpenChange={openChange}
                     menu={{
                         items: permissionOptions.map((item) => ({
                             key: item.key,
@@ -190,16 +200,21 @@ function PermissionModeMenu({ permissionMode, theme, onChange }: { permissionMod
 
 function ToolConfirmationMenu({ confirmTools, theme, onChange }: { confirmTools: boolean; theme: (typeof canvasThemes)[keyof typeof canvasThemes]; onChange: (confirmTools: boolean) => void }) {
     const { t } = useTranslation();
-    const [open, setOpen] = useState(false);
     const mode = t(confirmTools ? "agent.composer.tools.manual" : "agent.composer.tools.automatic");
+    const popover = useAgentStore((state) => state.composerPopover);
+    const setAgentState = useAgentStore((state) => state.setAgentState);
+    const openChange = (next: boolean) => {
+        if (!next && useAgentStore.getState().composerPopover !== "tools") return;
+        setAgentState({ composerPopover: next ? "tools" : "" });
+    };
     return (
-        <Tooltip title={t("agent.composer.tools.label", { mode })} placement="top" open={open ? false : undefined}>
+        <Tooltip title={t("agent.composer.tools.label", { mode })} placement="top" open={popover === "tools" ? false : undefined}>
             <span className="inline-flex shrink-0">
                 <Dropdown
                     trigger={["click"]}
                     placement="topLeft"
-                    open={open}
-                    onOpenChange={setOpen}
+                    open={popover === "tools"}
+                    onOpenChange={openChange}
                     menu={{
                         items: [
                             {

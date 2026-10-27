@@ -2,7 +2,7 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } fr
 import { useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import { App, Button, Tooltip } from "antd";
 import dayjs from "dayjs";
-import { Bot, History, MessageSquare, PlugZap, Plus, Sparkles, Terminal, X } from "lucide-react";
+import { Bot, BrushCleaning, History, MessageSquare, PlugZap, Plus, Sparkles, Terminal, X } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
 import i18n from "@/i18n";
@@ -656,12 +656,12 @@ export function LocalAgentPanel({ embedded, headless, autoConnect }: { embedded?
             document.removeEventListener("visibilitychange", activateVisible);
         };
     }, [connected, endpoint, token]);
-    // 内置引擎发送：@画布引用仍以文本形式拼进 prompt，附件不支持（需流式/大文件时用本机引擎）
+    // 内置引擎发送：@画布引用以文本形式拼进 prompt，图片附件随消息以 dataUrl 发给 vision 模型（需流式/大文件时用本机引擎）
     const sendBrowserPromptFromPanel = async () => {
         const current = useAgentStore.getState();
         const text = promptWithCanvasReferences(current.prompt.trim(), current.canvasReferences);
-        if (!text || current.sending) return;
-        await sendBrowserPrompt(text, navigate);
+        if ((!text && !current.attachments.length) || current.sending) return;
+        await sendBrowserPrompt(text, navigate, current.attachments);
     };
 
     const confirmClearBrowserChat = () => {
@@ -1419,7 +1419,7 @@ export function LocalAgentPanel({ embedded, headless, autoConnect }: { embedded?
                 right={
                     <>
                         <Tooltip title={engine === "browser" ? t("agent.chat.clearTitle") : t("agent.history.newThread")} placement="bottom">
-                            <Button size="small" type="text" className="!h-8 !w-8 !min-w-8 !px-0 @min-[560px]:!w-auto @min-[560px]:!min-w-0 @min-[560px]:!px-[7px]" aria-label={engine === "browser" ? t("agent.chat.clearTitle") : t("agent.history.newThread")} disabled={engine === "browser" ? sending : !connected || loadingThreads || sending || waiting || conversationBusy} icon={<Plus className="size-3.5" />} onClick={engine === "browser" ? confirmClearBrowserChat : startNewThread}>
+                            <Button size="small" type="text" className="!h-8 !w-8 !min-w-8 !px-0 @min-[560px]:!w-auto @min-[560px]:!min-w-0 @min-[560px]:!px-[7px]" aria-label={engine === "browser" ? t("agent.chat.clearTitle") : t("agent.history.newThread")} disabled={engine === "browser" ? sending : !connected || loadingThreads || sending || waiting || conversationBusy} icon={engine === "browser" ? <BrushCleaning className="size-3.5" /> : <Plus className="size-3.5" />} onClick={engine === "browser" ? confirmClearBrowserChat : startNewThread}>
                                 <span className="hidden @min-[560px]:inline">{engine === "browser" ? t("agent.chat.clearTitle") : t("agent.history.newThread")}</span>
                             </Button>
                         </Tooltip>
@@ -1494,8 +1494,8 @@ export function LocalAgentPanel({ embedded, headless, autoConnect }: { embedded?
                         onPromptChange={(prompt) => setAgentState({ prompt })}
                         onSubmit={sendPrompt}
                         onStop={stopTurn}
-                        onAddFiles={engine === "browser" ? undefined : addAttachments}
-                        onRemoveAttachment={engine === "browser" ? undefined : removeAttachment}
+                        onAddFiles={addAttachments}
+                        onRemoveAttachment={removeAttachment}
                         confirmTools={engine === "browser" ? undefined : confirmTools}
                         onConfirmToolsChange={engine === "browser" ? undefined : (confirmTools) => setAgentState({ confirmTools })}
                         permissionMode={engine === "browser" ? undefined : permissionMode}

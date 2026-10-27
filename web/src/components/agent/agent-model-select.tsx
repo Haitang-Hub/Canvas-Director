@@ -17,11 +17,13 @@ export function AgentTextModelSelect({ theme }: { theme: (typeof canvasThemes)[k
         const suffix = channel.name ? `（${channel.name}）` : "";
         return (models.length ? models : channel.models).map((model) => ({ value: encodeChannelModel(channel.id, model.name), label: `${model.name}${suffix}` }));
     });
-    let currentLabel = "";
-    try {
-        currentLabel = resolveModelRequestConfig(config, config.textModel).model || "";
-    } catch {
-        currentLabel = "";
+    let currentLabel = options.find((option) => option.value === config.textModel)?.label || "";
+    if (!currentLabel) {
+        try {
+            currentLabel = resolveModelRequestConfig(config, config.textModel).model || "";
+        } catch {
+            currentLabel = "";
+        }
     }
     if (!options.length) {
         return (

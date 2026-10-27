@@ -10,7 +10,7 @@ import type { NavigateFunction } from "react-router-dom";
 import i18n from "@/i18n";
 import { runDirectorTool, applyCanvasOpsFromDirector } from "@/pages/director/editor/hooks/use-director-agent-bridge";
 import { randomId } from "@/lib/utils";
-import type { AgentChatItem } from "@/stores/use-agent-store";
+import type { AgentAttachment, AgentChatItem } from "@/stores/use-agent-store";
 import { useAgentStore } from "@/stores/use-agent-store";
 import { clearBrowserChat, saveBrowserChat } from "@/services/agent-chat-storage";
 
@@ -34,12 +34,16 @@ function toolLabel(name: string) {
     return isSiteTool(name) ? SITE_TOOL_LABELS[name] : name;
 }
 
-/** 从持久化的消息构建 LLM 消息序列（原生 tool_calls 协议）。 */
+/** 从持久化的消息构建 LLM 消息序列（原生 tool_calls 协议；用户消息带图片时转为 vision image_url 内容）。 */
 function toLlmMessages(history: AgentChatItem[], context: "canvas" | "director"): AgentLlmMessage[] {
     const llm: AgentLlmMessage[] = [{ role: "system", content: context === "director" ? DIRECTOR_AGENT_SYSTEM_PROMPT : CANVAS_BROWSER_SYSTEM_PROMPT }];
     for (const item of history) {
         const detail = item.detail as { toolCalls?: AgentToolCall[]; toolCallId?: string; output?: string } | undefined;
-        if (item.role === "user") llm.push({ role: "user", content: item.text });
+        if (item.role === "user") {
+            const images = (item.attachments || []).map((attachment) => attachment.dataUrl || (attachment.url.startsWith("data:") ? attachment.url : "")).filter(Boolean);
+            if (images.length) llm.push({ role: "user", content: [{ type: "text", text: item.text }, ...images.map((url) => ({ type: "image_url" as const, image_url: { url } }))] });
+            else llm.push({ role: "user", content: item.text });
+        }
         else if (item.role === "assistant") llm.push({ role: "assistant", content: item.text, ...(detail?.toolCalls?.length ? { tool_calls: detail.toolCalls.map((call) => ({ id: call.id, type: "function" as const, function: { name: call.name, arguments: call.arguments } })) } : {}) });
         else if (item.role === "tool") llm.push({ role: "tool", tool_call_id: detail?.toolCallId || item.itemId || item.id, content: detail?.output || item.text || "{}" });
         else if (item.role === "error") llm.push({ role: "user", content: `[上一轮失败，请修正后重试] ${item.text}` });
@@ -77,11 +81,11 @@ async function runBrowserTool(name: string, input: Record<string, unknown>, cont
     throw new Error(`未知工具：${name}`);
 }
 
-/** 发送一条消息并运行 function calling 循环，直到模型不再调用工具。 */
-export async function sendBrowserPrompt(prompt: string, navigate: NavigateFunction) {
+/** 发送一条消息（可带图片附件）并运行 function calling 循环，直到模型不再调用工具。 */
+export async function sendBrowserPrompt(prompt: string, navigate: NavigateFunction, attachments: AgentAttachment[] = []) {
     const state = useAgentStore.getState();
     const text = prompt.trim();
-    if (!text || state.sending) return;
+    if ((!text && !attachments.length) || state.sending) return;
     const context = state.pageContext;
     const threadId = browserThreadId(context);
     const turnId = randomId();
@@ -98,10 +102,11 @@ export async function sendBrowserPrompt(prompt: string, navigate: NavigateFuncti
         saveBrowserChat(context, messages);
     };
 
-    const userItem: AgentChatItem = { id: randomId(), itemId: randomId(), threadId, turnId, role: "user", text };
+    const messageAttachments = attachments.map(({ id, name, type, size, width, height, dataUrl }) => ({ id, name, type, size, width, height, url: dataUrl, dataUrl }));
+    const userItem: AgentChatItem = { id: randomId(), itemId: randomId(), threadId, turnId, role: "user", text, ...(messageAttachments.length ? { attachments: messageAttachments } : {}) };
     useAgentStore.setState({ browserMessages: [...useAgentStore.getState().browserMessages, userItem] });
     saveBrowserChat(context, useAgentStore.getState().browserMessages);
-    useAgentStore.setState({ prompt: "", canvasReferences: [], sending: true, activity: "思考中…" });
+    useAgentStore.setState({ prompt: "", attachments: [], canvasReferences: [], sending: true, activity: "思考中…" });
 
     activeAbortController = new AbortController();
     const signal = activeAbortController.signal;
