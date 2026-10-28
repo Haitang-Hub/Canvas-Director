@@ -121,13 +121,13 @@ export function CanvasTopBar({
                                     if (event.key === "Enter") onFinishTitleEditing();
                                     if (event.key === "Escape") onCancelTitleEditing();
                                 }}
-                                className="max-w-[280px] bg-transparent p-0 text-left text-lg font-semibold tracking-normal outline-none"
+                                className="max-w-[120px] bg-transparent p-0 text-left text-lg font-semibold tracking-normal outline-none sm:max-w-[280px]"
                                 style={{ color: theme.node.text }}
                             />
                         ) : (
                             <button
                                 type="button"
-                                className="max-w-[280px] truncate border-b border-dashed border-transparent text-left text-lg font-semibold tracking-normal transition hover:border-current"
+                                className="max-w-[120px] truncate border-b border-dashed border-transparent text-left text-lg font-semibold tracking-normal transition hover:border-current sm:max-w-[280px]"
                                 onDoubleClick={onStartTitleEditing}
                                 title={t("canvas.renameHint")}
                             >
@@ -148,7 +148,7 @@ export function CanvasTopBar({
                         icon={<Bot className="size-4" />}
                         onClick={onToggleAgent}
                     >
-                        Agent
+                        <span className="hidden sm:inline">Agent</span>
                     </Button>
                 </div>
             </div>
@@ -192,8 +192,8 @@ function CompactAgentStatus({ status, onClick }: { status: { connected: boolean;
     const dotColor = status.connected ? "#22c55e" : status.enabled ? "#f59e0b" : theme.node.muted;
     return (
         <button type="button" className="flex h-8 items-center gap-1.5 text-xs transition hover:opacity-75" style={{ color: status.connected ? "#16a34a" : status.enabled ? "#d97706" : theme.node.muted }} onClick={onClick} title={t("canvas.openAgent")}>
-            <span className="size-2 rounded-full" style={{ background: dotColor }} />
-            <span className="max-w-[140px] truncate">{label}</span>
+            <span className="size-2 shrink-0 rounded-full" style={{ background: dotColor }} />
+            <span className="hidden max-w-[140px] truncate sm:inline">{label}</span>
         </button>
     );
 }

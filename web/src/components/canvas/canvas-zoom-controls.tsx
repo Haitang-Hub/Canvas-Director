@@ -46,13 +46,13 @@ export function CanvasZoomControls({ scale, onScaleChange, onReset, isMiniMapOpe
                     max="500"
                         step="1"
                         value={Math.round(scale * 100)}
-                        className="w-24"
+                        className="hidden w-24 sm:block"
                         style={{ accentColor: theme.node.activeStroke }}
                         onChange={(event) => onScaleChange(Number(event.target.value) / 100)}
                         aria-label={t("canvas.zoom")}
                     />
                 </Tooltip>
-                <span className="w-10 text-right text-xs tabular-nums" style={{ color: theme.node.muted }}>
+                <span className="hidden w-10 text-right text-xs tabular-nums sm:block" style={{ color: theme.node.muted }}>
                     {Math.round(scale * 100)}%
                 </span>
                 <Tooltip title={t("canvas.shortcuts")}>

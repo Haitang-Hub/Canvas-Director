@@ -2059,15 +2059,28 @@
   }
 
   .app-shell .top-bar {
-    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-columns: minmax(0, 1fr) auto auto;
   }
 
   .app-shell .top-bar-center {
     justify-self: end;
   }
 
-  .app-shell .top-bar-right {
-    display: none;
+  /* 小屏保留 Agent 与模型配置入口，去文字仅留图标 */
+  .app-shell .top-bar-right .top-bar-motion-button,
+  .app-shell .top-bar-right .top-bar-exit-button {
+    width: 32px;
+    min-width: 32px;
+    padding: 0;
+    gap: 0;
+    font-size: 0;
+  }
+
+  .app-shell .director-desk-name {
+    min-width: 0;
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
 
   .app-shell .left-sidebar {
@@ -2098,7 +2111,10 @@
     display: none;
   }
 
-  .app-shell .top-bar-right {
+  /* 极小屏隐藏视口灵敏度、性能与导入导出入口（功能可通过返回画布页使用），保留核心视角切换 */
+  .app-shell .top-bar-center .viewport-sensitivity-settings,
+  .app-shell .top-bar-center .performance-settings,
+  .app-shell .top-bar-center .export-panel {
     display: none;
   }
 
@@ -2120,10 +2136,6 @@
   .app-shell .mode-toggle-button {
     width: auto;
     min-width: 68px;
-  }
-
-  .app-shell .top-bar-right {
-    display: none;
   }
 
   .app-shell .viewport-toolbar {

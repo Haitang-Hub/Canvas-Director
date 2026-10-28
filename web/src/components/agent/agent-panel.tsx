@@ -9,7 +9,7 @@ import { AGENT_PANEL_FLOAT_WIDTH, savePanelLayout, useAgentStore, type AgentPage
 import { useThemeStore } from "@/stores/use-theme-store";
 import { flushBrowserChat } from "@/services/agent-chat-storage";
 
-const DOCK_SNAP_DISTANCE = 56;
+const DOCK_SNAP_DISTANCE = 10;
 const FLOAT_HEIGHT = Math.min(typeof window === "undefined" ? 680 : window.innerHeight * 0.72, 680);
 const FLOAT_MIN_WIDTH = 320;
 const FLOAT_MIN_HEIGHT = 320;
@@ -39,6 +39,10 @@ export function AgentPanel({ context = "canvas" }: { context?: AgentPageContext 
     const docked = layout.mode !== "float";
     const floatWidth = layout.width ?? AGENT_PANEL_FLOAT_WIDTH;
     const floatHeight = layout.height ?? FLOAT_HEIGHT;
+    // 拖动中按松手判定规则实时预测停靠目标，遮罩尺寸与松手后的停靠面板完全一致（全高 × 停靠宽度）
+    const dockPreview = dragging && !docked
+        ? layout.x < DOCK_SNAP_DISTANCE ? "left" : layout.x + floatWidth > window.innerWidth - DOCK_SNAP_DISTANCE ? "right" : null
+        : null;
 
     useEffect(() => {
         setAgentState({ pageContext: context });
@@ -164,6 +168,13 @@ export function AgentPanel({ context = "canvas" }: { context?: AgentPageContext 
 
     return (
         <AgentPanelShellContext.Provider value={shell}>
+            {dockPreview ? (
+                <div
+                    aria-hidden
+                    className={`pointer-events-none fixed inset-y-0 z-[69] border-2 border-dashed ${dockPreview === "left" ? "left-0" : "right-0"}`}
+                    style={{ width, borderColor: theme.node.activeStroke, background: `color-mix(in srgb, ${theme.node.activeStroke} 14%, transparent)` }}
+                />
+            ) : null}
             <motion.div
                 data-agent-panel-root
                 data-canvas-shortcuts-ignore

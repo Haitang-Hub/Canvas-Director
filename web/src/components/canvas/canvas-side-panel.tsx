@@ -62,6 +62,8 @@ export function CanvasSidePanel({ nodes, selectedNodeIds, onFocusNode, onPreview
     const panelClosing = useCanvasSidePanelStore((state) => state.panelClosing);
     const setWidth = useCanvasSidePanelStore((state) => state.setWidth);
     const [resizing, setResizing] = useState(false);
+    // 小屏钳制：面板宽度不超过视口，保证右侧至少留出画布可操作空间
+    const effectiveWidth = Math.max(CANVAS_SIDE_PANEL_MIN_WIDTH, Math.min(width, window.innerWidth - 72));
 
     const startResize = (event: ReactPointerEvent<HTMLButtonElement>) => {
         event.preventDefault();
@@ -89,7 +91,7 @@ export function CanvasSidePanel({ nodes, selectedNodeIds, onFocusNode, onPreview
         <motion.div
             className="relative z-[60] flex h-full shrink-0"
             initial={{ width: 0, opacity: 0 }}
-            animate={{ width: panelOpen ? width + 1 : 0, opacity: panelOpen ? 1 : 0 }}
+            animate={{ width: panelOpen ? effectiveWidth + 1 : 0, opacity: panelOpen ? 1 : 0 }}
             transition={{ duration: resizing ? 0 : PANEL_MOTION_SECONDS, ease: PANEL_EASE }}
             style={{ overflow: "clip", pointerEvents: panelClosing ? "none" : undefined }}
         >
@@ -98,7 +100,7 @@ export function CanvasSidePanel({ nodes, selectedNodeIds, onFocusNode, onPreview
                 initial={{ x: -48 }}
                 animate={{ x: panelClosing ? -28 : 0 }}
                 transition={{ duration: resizing ? 0 : PANEL_MOTION_SECONDS, ease: PANEL_EASE }}
-                style={{ width, background: theme.toolbar.panel, borderColor: theme.toolbar.border, color: theme.node.text }}
+                style={{ width: effectiveWidth, background: theme.toolbar.panel, borderColor: theme.toolbar.border, color: theme.node.text }}
                 data-canvas-no-zoom
             >
                 <div className="flex items-center gap-5 px-4 pt-3.5">

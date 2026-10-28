@@ -8,6 +8,7 @@ import { FBXLoader } from "three/examples/jsm/loaders/FBXLoader.js";
 import { OBJLoader } from "three/examples/jsm/loaders/OBJLoader.js";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import { clone as cloneSkeleton } from "three/examples/jsm/utils/SkeletonUtils.js";
+import { useMediaQuery } from "@/hooks/use-media-query";
 import type {
   DirectorAssetRef,
   DirectorCameraShot,
@@ -159,6 +160,10 @@ function ViewportTransformControls({
   }, []);
   const beginUndoBatch = useDirectorStore((state) => state.beginUndoBatch);
   const endUndoBatch = useDirectorStore((state) => state.endUndoBatch);
+  // 小屏（手机/竖屏平板）触控拖三轴容易误触，直接隐藏 XYZ 变换控制器
+  const hideTransformGizmo = useMediaQuery("(max-width: 768px)");
+
+  if (hideTransformGizmo) return null;
 
   return (
     <TransformControls
