@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+## v1.2.1 - 2026-11-12
+
++ [修复] 文档站构建失败：`canvas-director-overhaul-plan.mdx` 的 frontmatter description 含未加引号的冒号导致 YAML 解析失败，`pending-test.mdx` 正文里的裸 `<` 被当作 JSX 标签（`Unexpected token '<'`、`<工具名>`）导致 MDX 编译失败；修正后 `docs` 可正常构建，Docs Docker 镜像恢复产出。
+
 ## v1.2.0 - 2026-11-08
 
 + [新增] 小屏自适应：导演台与无限画布针对窄窗口/移动端优化——导演台顶栏小屏收纳为图标（Agent 与模型配置保留入口、极小屏隐藏灵敏度/性能/导入导出）、选中物体的 XYZ 三轴控制器在小屏（≤768px）隐藏；画布顶栏 Agent 按钮与连接状态小屏仅留图标、底部工具栏上移铺满、缩放滑杆精简、左侧面板宽度钳制不超出视口。
