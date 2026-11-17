@@ -126,7 +126,7 @@ function AgentModelControls({ models, model, reasoningEffort, onModelChange, onR
             <Tooltip title={t("agent.composer.model", { model: current.displayName || current.model })} placement="top" open={popover === "model" ? false : undefined}>
                 <span className="inline-flex shrink-0">
                     <Select value={model} open={popover === "model"} onOpenChange={composerOpenChange("model")} onValueChange={onModelChange}>
-                        <SelectTrigger hideChevron className="h-9 w-9 min-w-9 justify-center gap-0 rounded-full border-0 bg-transparent px-0 text-xs font-medium shadow-none hover:bg-black/5 focus:ring-0 @min-[660px]:w-auto @min-[660px]:min-w-36 @min-[660px]:max-w-36 @min-[660px]:justify-start @min-[660px]:gap-1.5 @min-[660px]:px-2.5 dark:bg-transparent dark:hover:bg-white/10" aria-label={t("agent.composer.selectModel", { model: current.displayName || current.model })}>
+                        <SelectTrigger hideChevron className="!h-9 w-9 min-w-9 justify-center gap-0 rounded-full border-0 bg-transparent px-0 text-xs font-medium shadow-none hover:bg-black/5 focus:ring-0 @min-[660px]:w-auto @min-[660px]:min-w-36 @min-[660px]:max-w-36 @min-[660px]:justify-start @min-[660px]:gap-1.5 @min-[660px]:px-2.5 dark:bg-transparent dark:hover:bg-white/10" aria-label={t("agent.composer.selectModel", { model: current.displayName || current.model })}>
                             <Cpu className="size-3.5 shrink-0 opacity-70" />
                             <span className="hidden min-w-0 flex-1 truncate text-left @min-[660px]:inline">{current.displayName || current.model}</span>
                             <ChevronUp className="hidden size-3 opacity-50 @min-[660px]:block" />
@@ -141,7 +141,7 @@ function AgentModelControls({ models, model, reasoningEffort, onModelChange, onR
             <Tooltip title={t("agent.composer.reasoning", { effort: effortLabel(reasoningEffort) })} placement="top" open={popover === "reasoning" ? false : undefined}>
                 <span className="inline-flex shrink-0">
                     <Select value={reasoningEffort || current?.defaultReasoningEffort || "medium"} open={popover === "reasoning"} onOpenChange={composerOpenChange("reasoning")} onValueChange={(value) => onReasoningEffortChange(value as AgentReasoningEffort)}>
-                        <SelectTrigger hideChevron className="h-9 w-9 min-w-9 justify-center gap-0 rounded-full border-0 bg-transparent px-0 text-xs font-medium shadow-none hover:bg-black/5 focus:ring-0 @min-[660px]:w-auto @min-[660px]:min-w-[4.5rem] @min-[660px]:justify-start @min-[660px]:gap-1.5 @min-[660px]:px-2.5 dark:bg-transparent dark:hover:bg-white/10" aria-label={t("agent.composer.selectReasoning", { effort: effortLabel(reasoningEffort) })}>
+                        <SelectTrigger hideChevron className="!h-9 w-9 min-w-9 justify-center gap-0 rounded-full border-0 bg-transparent px-0 text-xs font-medium shadow-none hover:bg-black/5 focus:ring-0 @min-[660px]:w-auto @min-[660px]:min-w-[4.5rem] @min-[660px]:justify-start @min-[660px]:gap-1.5 @min-[660px]:px-2.5 dark:bg-transparent dark:hover:bg-white/10" aria-label={t("agent.composer.selectReasoning", { effort: effortLabel(reasoningEffort) })}>
                             <Gauge className="size-3.5 opacity-70" />
                             <span className="hidden @min-[660px]:inline">{effortLabel(reasoningEffort)}</span>
                             <ChevronUp className="hidden size-3 opacity-50 @min-[660px]:block" />

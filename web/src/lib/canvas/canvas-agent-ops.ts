@@ -1,6 +1,7 @@
 import { nanoid } from "nanoid";
 
 import i18n from "@/i18n";
+import { applyGroupSelection, applyUngroupSelection, collectGroupMemberNodes, getGroupWrapRect } from "@/lib/canvas/canvas-node-geometry";
 import { getNodeSpec, isRegisteredNodeType } from "@/lib/canvas/node-registry";
 import { createDirectorDeskRecord, ensureDirectorDeskRecords, writeDirectorDeskRecords } from "@/pages/director/editor/workspaces/directorDeskRegistry";
 import { CanvasNodeType, type CanvasConnection, type CanvasNodeData, type CanvasNodeMetadata, type CanvasNodeTypeId, type ViewportTransform } from "@/types/canvas";
@@ -13,6 +14,9 @@ export type CanvasAgentOp =
     | { type: "connect_nodes"; id?: string; fromNodeId: string; toNodeId: string }
     | { type: "set_viewport"; viewport: ViewportTransform }
     | { type: "select_nodes"; ids: string[] }
+    | { type: "duplicate_nodes"; ids: string[]; offsetX?: number; offsetY?: number }
+    | { type: "group_nodes"; ids: string[]; title?: string }
+    | { type: "ungroup_nodes"; ids: string[] }
     | { type: "run_generation"; nodeId: string; mode?: "text" | "image" | "video" | "audio"; prompt?: string };
 
 export type CanvasAgentSnapshot = {
@@ -93,6 +97,49 @@ export function applyCanvasAgentOps(snapshot: CanvasAgentSnapshot, ops?: CanvasA
         }
         if (op.type === "set_viewport" && op.viewport) viewport = op.viewport;
         if (op.type === "select_nodes") selectedNodeIds = (op.ids || []).filter((id) => nodes.some((node) => node.id === id));
+        if (op.type === "duplicate_nodes") {
+            const ids = new Set(op.ids || []);
+            const offsetX = op.offsetX ?? 36;
+            const offsetY = op.offsetY ?? 36;
+            const idMap = new Map<string, string>();
+            const copies = nodes.filter((node) => ids.has(node.id)).map((node, index) => {
+                const id = `${node.type}-${Date.now()}-${index}-${Math.random().toString(36).slice(2, 7)}`;
+                idMap.set(node.id, id);
+                return { ...node, id, position: { x: node.position.x + offsetX, y: node.position.y + offsetY }, metadata: node.metadata ? { ...node.metadata } : undefined };
+            });
+            // 副本整体属于同一组时，把 groupId 重映射到组节点的副本，避免两个组共享成员。
+            copies.forEach((node) => {
+                const groupId = node.metadata?.groupId;
+                if (groupId && idMap.has(groupId)) node.metadata = { ...node.metadata, groupId: idMap.get(groupId) };
+            });
+            const internalConnections = connections.filter((connection) => idMap.has(connection.fromNodeId) && idMap.has(connection.toNodeId)).map((connection) => ({ id: nanoid(), fromNodeId: idMap.get(connection.fromNodeId) || "", toNodeId: idMap.get(connection.toNodeId) || "" }));
+            nodes = [...nodes, ...copies];
+            connections = [...connections, ...internalConnections];
+            if (copies.length) selectedNodeIds = copies.map((node) => node.id);
+        }
+        if (op.type === "group_nodes") {
+            const ids = new Set(op.ids || []);
+            const members = collectGroupMemberNodes(ids, nodes);
+            if (members.length >= 2) {
+                const rect = getGroupWrapRect(members);
+                const spec = getNodeSpec(CanvasNodeType.Group);
+                const group: CanvasNodeData = { id: `group-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`, type: CanvasNodeType.Group, title: op.title || spec.title, position: { x: rect.x, y: rect.y }, width: rect.width, height: rect.height, metadata: { ...spec.metadata } };
+                const result = applyGroupSelection(ids, nodes, connections, group);
+                if (result) {
+                    nodes = result.nodes;
+                    connections = result.connections;
+                    selectedNodeIds = result.selectedIds;
+                }
+            }
+        }
+        if (op.type === "ungroup_nodes") {
+            const result = applyUngroupSelection(new Set(op.ids || []), nodes, connections);
+            if (result) {
+                nodes = result.nodes;
+                connections = result.connections;
+                selectedNodeIds = result.selectedIds;
+            }
+        }
     });
 
     return { ...snapshot, nodes, connections, selectedNodeIds, viewport };

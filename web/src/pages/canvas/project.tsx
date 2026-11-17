@@ -17,7 +17,7 @@ import { imageReferenceLabel } from "@/lib/image-reference-prompt";
 import { canvasThemes, type CanvasBackgroundMode } from "@/lib/canvas-theme";
 import { useAssetStore } from "@/stores/use-asset-store";
 import { useThemeStore } from "@/stores/use-theme-store";
-import { cropDataUrl, splitDataUrl, upscaleDataUrl } from "@/lib/canvas/canvas-image-data";
+import { MAX_UPSCALE_LONG_EDGE, cropDataUrl, splitDataUrl, upscaleDataUrl } from "@/lib/canvas/canvas-image-data";
 import { fitNodeSize, nodeSizeFromRatio } from "@/lib/canvas/canvas-node-size";
 import { captureVideoFrame, type VideoFramePosition } from "@/lib/canvas/canvas-video-frame";
 import { App, Button, Modal } from "antd";
@@ -277,6 +277,7 @@ function InfiniteCanvasPage() {
     const viewportRef = useRef(viewport);
     const focusAnimRef = useRef<number | null>(null);
     const generateNodeRef = useRef<((nodeId: string, mode: CanvasNodeGenerationMode, prompt: string) => Promise<void>) | null>(null);
+    const pageActionRef = useRef<((name: string, input: Record<string, unknown>) => Promise<unknown>) | null>(null);
     const connectingParamsRef = useRef(connectingParams);
     const connectionTargetNodeIdRef = useRef(connectionTargetNodeId);
     const selectionBoxRef = useRef(selectionBox);
@@ -817,6 +818,7 @@ function InfiniteCanvasPage() {
         selectedNodeIdsRef,
         viewportRef,
         generateNodeRef,
+        pageActionRef,
         setNodes,
         setConnections,
         setSelectedNodeIds,
@@ -1358,8 +1360,11 @@ function InfiniteCanvasPage() {
             const clickedNode = nodesRef.current.find((node) => node.id === clickedNodeId);
             const clickedDefinition = clickedNode ? getNodeDefinition(clickedNode.type) : undefined;
             if (clickedDefinition?.hidePanel) {
-                // Clicking a display-only plugin node selects it without opening a lower panel.
+                // Clicking a display-only node (导演台/镜头) selects it without opening a lower panel; selection still auto-centers.
                 setDialogNodeId((current) => (current === clickedNodeId ? current : null));
+                if (useConfigStore.getState().config.autoFocusOnSelect) {
+                    requestAnimationFrame(() => focusNodeRef.current(clickedNodeId));
+                }
             } else if (clickedNode?.type !== CanvasNodeType.Group) {
                 setDialogNodeId(clickedNodeId);
                 if (useConfigStore.getState().config.autoFocusOnSelect) {
@@ -3077,6 +3082,153 @@ function InfiniteCanvasPage() {
         },
         [insertAssistantImage, insertAssistantText, screenToCanvas, size.height, size.width],
     );
+
+    // Agent 页面级动作：撤销/重做、停止生成、节点后处理与素材插入等依赖页面状态的能力，直接复用上方现有 handler。
+    const runAgentPageAction = useCallback(
+        async (name: string, input: Record<string, unknown>) => {
+            if (name === "canvas_undo") {
+                undoCanvas();
+                return { ok: true, action: "undo" };
+            }
+            if (name === "canvas_redo") {
+                redoCanvas();
+                return { ok: true, action: "redo" };
+            }
+            if (name === "canvas_stop_generation") {
+                const nodeId = typeof input.nodeId === "string" ? input.nodeId : "";
+                if (nodeId) stopGenerationByRunningId(nodeId);
+                else generationRequestsRef.current.forEach((request) => stopGenerationByRunningId(request.runningNodeId));
+                return { ok: true, action: "stop_generation" };
+            }
+            if (name !== "canvas_node_action") throw new Error(t("canvas.agentAction.unknownAction", { name }));
+            const action = String(input.action || "");
+            if (action === "clear_canvas") {
+                clearCanvas();
+                return { ok: true, action };
+            }
+            if (action === "insert_assets") {
+                const assetIds = Array.isArray(input.assetIds) ? input.assetIds.filter((id): id is string => typeof id === "string") : [];
+                const assets = assetIds.map((id) => {
+                    const asset = useAssetStore.getState().assets.find((item) => item.id === id);
+                    if (!asset) throw new Error(t("canvas.agentAction.assetMissing", { id }));
+                    return asset;
+                });
+                if (!assets.length) throw new Error(t("canvas.agentAction.paramsMissing", { field: "assetIds" }));
+                const center = screenToCanvas((containerRef.current?.getBoundingClientRect().left || 0) + size.width / 2, (containerRef.current?.getBoundingClientRect().top || 0) + size.height / 2);
+                const baseX = typeof input.x === "number" ? input.x : center.x;
+                const baseY = typeof input.y === "number" ? input.y : center.y;
+                const createdIds: string[] = [];
+                const createdNodes: CanvasNodeData[] = [];
+                let cursorX = baseX;
+                assets.forEach((asset) => {
+                    if (asset.kind === "text") {
+                        const spec = NODE_DEFAULT_SIZE[CanvasNodeType.Text];
+                        const node = { ...createCanvasNode(CanvasNodeType.Text, { x: cursorX + spec.width / 2, y: baseY + spec.height / 2 }, { content: asset.data.content, status: NODE_STATUS_SUCCESS }), title: asset.title };
+                        createdIds.push(node.id);
+                        createdNodes.push(node);
+                        cursorX += spec.width + 96;
+                        return;
+                    }
+                    if (asset.kind === "video") {
+                        const spec = NODE_DEFAULT_SIZE[CanvasNodeType.Video];
+                        const nextSize = fitNodeSize(asset.data.width || spec.width, asset.data.height || spec.height, VIDEO_NODE_MAX_WIDTH, VIDEO_NODE_MAX_HEIGHT);
+                        const node: CanvasNodeData = {
+                            id: nanoid(),
+                            type: CanvasNodeType.Video,
+                            title: asset.title,
+                            position: { x: cursorX, y: baseY },
+                            width: nextSize.width,
+                            height: nextSize.height,
+                            metadata: { content: asset.data.url, storageKey: asset.data.storageKey, status: NODE_STATUS_SUCCESS, naturalWidth: asset.data.width, naturalHeight: asset.data.height },
+                        };
+                        createdIds.push(node.id);
+                        createdNodes.push(node);
+                        cursorX += nextSize.width + 96;
+                        return;
+                    }
+                    const metaWidth = asset.data.width || 512;
+                    const metaHeight = asset.data.height || 512;
+                    const nextSize = fitNodeSize(metaWidth, metaHeight);
+                    const node: CanvasNodeData = {
+                        id: nanoid(),
+                        type: CanvasNodeType.Image,
+                        title: asset.title,
+                        position: { x: cursorX, y: baseY },
+                        width: nextSize.width,
+                        height: nextSize.height,
+                        metadata: { ...imageMetadata({ url: asset.data.dataUrl, storageKey: asset.data.storageKey, width: metaWidth, height: metaHeight, bytes: asset.data.bytes, mimeType: asset.data.mimeType }), prompt: asset.title, status: NODE_STATUS_SUCCESS },
+                    };
+                    createdIds.push(node.id);
+                    createdNodes.push(node);
+                    cursorX += nextSize.width + 96;
+                });
+                setNodes((prev) => [...prev, ...createdNodes]);
+                setSelectedNodeIds(new Set(createdIds));
+                setSelectedConnectionId(null);
+                return { ok: true, action, nodeIds: createdIds };
+            }
+            const node = nodesRef.current.find((item) => item.id === input.nodeId);
+            if (!node) throw new Error(t("canvas.agentAction.nodeMissing", { id: String(input.nodeId || "") }));
+            const imageId = typeof input.imageId === "string" ? input.imageId : "";
+            switch (action) {
+                case "crop": {
+                    const rect = input.rect as CanvasImageCropRect | undefined;
+                    if (!rect) throw new Error(t("canvas.agentAction.paramsMissing", { field: "rect" }));
+                    await cropImageNode(node, rect);
+                    return { ok: true, action };
+                }
+                case "split": {
+                    const rows = Math.max(1, Math.min(12, Math.floor(Number(input.rows)) || 2));
+                    const columns = Math.max(1, Math.min(12, Math.floor(Number(input.columns)) || 2));
+                    await splitImageNode(node, { rows, columns, horizontalLines: Array.from({ length: rows - 1 }, (_, index) => (index + 1) / rows), verticalLines: Array.from({ length: columns - 1 }, (_, index) => (index + 1) / columns) });
+                    return { ok: true, action, rows, columns };
+                }
+                case "upscale": {
+                    const longEdge = Math.max(node.metadata?.naturalWidth || node.width, node.metadata?.naturalHeight || node.height);
+                    const targetLongEdge = Math.min(MAX_UPSCALE_LONG_EDGE, Math.max(256, Math.round(longEdge * (Number(input.scale) || 2))));
+                    await upscaleImageNode(node, { targetLongEdge, algorithm: "high" });
+                    return { ok: true, action, targetLongEdge };
+                }
+                case "angle": {
+                    await generateAngleNode(node, { horizontalAngle: Number(input.horizontalAngle) || 0, pitchAngle: Number(input.pitchAngle) || 9, cameraDistance: Number(input.cameraDistance) || 4.8, wideAngle: input.wideAngle === true });
+                    return { ok: true, action };
+                }
+                case "capture_frame": {
+                    await captureVideoNodeFrame(node.id, input.position === "first" || input.position === "last" ? input.position : "current");
+                    return { ok: true, action };
+                }
+                case "reverse_prompt": {
+                    createImageReversePromptNodes(node);
+                    return { ok: true, action };
+                }
+                case "batch_set_primary": {
+                    if (!imageId) throw new Error(t("canvas.agentAction.paramsMissing", { field: "imageId" }));
+                    setBatchPrimary(node.id, imageId);
+                    return { ok: true, action };
+                }
+                case "batch_duplicate_image": {
+                    if (!imageId) throw new Error(t("canvas.agentAction.paramsMissing", { field: "imageId" }));
+                    duplicateBatchImage(node, imageId);
+                    return { ok: true, action };
+                }
+                case "batch_delete_image": {
+                    if (!imageId) throw new Error(t("canvas.agentAction.paramsMissing", { field: "imageId" }));
+                    deleteBatchImage(node.id, imageId);
+                    return { ok: true, action };
+                }
+                case "download": {
+                    downloadNodeImage(node);
+                    return { ok: true, action };
+                }
+                default:
+                    throw new Error(t("canvas.agentAction.unknownAction", { action }));
+            }
+        },
+        [captureVideoNodeFrame, clearCanvas, createImageReversePromptNodes, cropImageNode, deleteBatchImage, downloadNodeImage, duplicateBatchImage, generateAngleNode, redoCanvas, screenToCanvas, setBatchPrimary, size.height, size.width, splitImageNode, stopGenerationByRunningId, t, undoCanvas, upscaleImageNode],
+    );
+    useEffect(() => {
+        pageActionRef.current = runAgentPageAction;
+    }, [runAgentPageAction]);
 
     // Memoize every callback and render function passed to CanvasNode.
     // CanvasNode uses React.memo, but new prop references would invalidate it on every render and rerender every node

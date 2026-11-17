@@ -1,4 +1,4 @@
-import { App, Button, Drawer, Input, Space, Switch } from "antd";
+import { App, Button, Drawer, Input, Select, Space, Switch } from "antd";
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -49,8 +49,13 @@ export function PromptSourceEditorDrawer({ open, source, onSave, onClose }: { op
                     <Input value={draft.name} onChange={(event) => patch({ name: event.target.value })} placeholder={t("config.promptSources.editor.namePlaceholder")} />
                 </label>
                 <label className="block">
-                    <span className="mb-1.5 block text-sm font-medium">JSON URL</span>
-                    <Input value={draft.url} onChange={(event) => patch({ url: event.target.value })} placeholder="https://example.com/prompts.json" />
+                    <span className="mb-1.5 block text-sm font-medium">{t("config.promptSources.editor.mediaType")}</span>
+                    <Select className="w-full" value={draft.mediaType} options={[{ value: "image", label: t("config.promptSources.editor.mediaImage") }, { value: "video", label: t("config.promptSources.editor.mediaVideo") }]} onChange={(mediaType) => patch({ mediaType })} />
+                </label>
+                <label className="block">
+                    <span className="mb-1.5 block text-sm font-medium">{t("config.promptSources.editor.url")}</span>
+                    <Input value={draft.url} onChange={(event) => patch({ url: event.target.value })} placeholder="https://raw.githubusercontent.com/org/repo/main/README.md" />
+                    <span className="mt-1 block text-xs text-stone-400">{t("config.promptSources.editor.urlHint")}</span>
                 </label>
                 <label className="block">
                     <span className="mb-1.5 block text-sm font-medium">{t("config.promptSources.editor.homepage")}</span>

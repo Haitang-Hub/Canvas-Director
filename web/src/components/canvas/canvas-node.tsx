@@ -515,10 +515,6 @@ function DirectorNodeContent({ node, theme }: NodeContentRendererProps) {
                 <Clapperboard className="size-6" strokeWidth={1.6} />
             </span>
             <span className="max-w-full truncate text-sm font-semibold" style={{ color: theme.node.text }}>{deskName}</span>
-            {node.metadata?.directorDeskId ? (
-                <span className="max-w-full truncate font-mono text-[11px]" style={{ color: theme.node.muted }}>{node.metadata.directorDeskId}</span>
-            ) : null}
-            <span className="text-[11px]" style={{ color: theme.node.muted }}>{t("canvas.node.openDirectorDeskHint")}</span>
         </div>
     );
 }

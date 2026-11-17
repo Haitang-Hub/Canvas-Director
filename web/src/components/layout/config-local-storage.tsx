@@ -9,11 +9,13 @@ import { readLocalStorageUsage, type LocalStorageUsage } from "@/services/local-
 const storeLabelKeys: Record<string, string> = {
     app_state: "appState",
     image_files: "images",
+    image_previews: "imagePreviews",
     media_files: "media",
     image_generation_logs: "imageLogs",
     video_generation_logs: "videoLogs",
-    agent_chat_messages: "agentMessages",
+    agent_chat: "agentMessages",
     prompt_cache: "promptCache",
+    "local-forage-detect-blob-support": "blobSupport",
 };
 
 export function ConfigLocalStorage({ active }: { active: boolean }) {

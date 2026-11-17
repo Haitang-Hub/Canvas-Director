@@ -1,16 +1,16 @@
 import { nanoid } from "nanoid";
 
+export type PromptSourceMediaType = "image" | "video";
+
 export type PromptSource = {
     id: string;
     name: string;
     url: string;
     homepage: string;
+    mediaType: PromptSourceMediaType;
     enabled: boolean;
     builtIn: boolean;
 };
-
-export const PROMPT_REGISTRY_HOMEPAGE = "https://github.com/yukkcat/image-prompts";
-const PROMPT_REGISTRY_SOURCE_BASE = "https://raw.githubusercontent.com/yukkcat/image-prompts/main/dist/sources";
 
 export function createPromptSource(source?: Partial<PromptSource>): PromptSource {
     return {
@@ -18,21 +18,12 @@ export function createPromptSource(source?: Partial<PromptSource>): PromptSource
         name: source?.name?.trim() || "",
         url: source?.url?.trim() || "",
         homepage: source?.homepage?.trim() || "",
+        mediaType: source?.mediaType === "video" ? "video" : "image",
         enabled: source?.enabled ?? true,
         builtIn: source?.builtIn ?? false,
     };
 }
 
-export const DEFAULT_PROMPT_SOURCES: PromptSource[] = [
-    registrySource("banana-prompt-quicker", "Banana Prompt Quicker", "https://glidea.github.io/banana-prompt-quicker/"),
-    registrySource("davidwu-gpt-image2-prompts", "DavidWu GPT Image 2", "https://github.com/davidwuw0811-boop/awesome-gpt-image2-prompts"),
-    registrySource("freestylefly-gpt-image-2", "Freestylefly GPT Image 2", "https://github.com/freestylefly/awesome-gpt-image-2"),
-    registrySource("awesome-gpt-image", "Awesome GPT Image", "https://github.com/ZeroLu/awesome-gpt-image"),
-    registrySource("awesome-gpt4o-image-prompts", "Awesome GPT-4o", "https://github.com/ImgEdify/Awesome-GPT4o-Image-Prompts"),
-    registrySource("youmind-gpt-image-2", "YouMind GPT Image 2", "https://github.com/YouMind-OpenLab/awesome-gpt-image-2"),
-    registrySource("youmind-nano-banana-pro", "YouMind Nano Banana Pro", "https://github.com/YouMind-OpenLab/awesome-nano-banana-pro-prompts"),
-];
-
-function registrySource(id: string, name: string, homepage: string): PromptSource {
-    return { id, name, url: `${PROMPT_REGISTRY_SOURCE_BASE}/${id}.json`, homepage, enabled: true, builtIn: true };
-}
+// 不内置任何默认来源；提示词库通过「从 GitHub 选择」（默认组织 YouMind-OpenLab，含内置仓库兜底清单）或「自定义来源」按需添加。
+// 历史上以内置身份持久化的来源会在 store merge 时自动清空（不在默认清单内即被丢弃）。
+export const DEFAULT_PROMPT_SOURCES: PromptSource[] = [];

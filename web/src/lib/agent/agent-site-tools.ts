@@ -1,15 +1,23 @@
 import type { NavigateFunction } from "react-router-dom";
 
 import i18n from "@/i18n";
-import { fetchPrompts } from "@/services/api/prompts";
+import { fetchPromptSourceStatuses, fetchPrompts, fetchSourcePrompts, refreshAllSources, refreshSource } from "@/services/api/prompts";
+import { createPromptSource } from "@/services/api/prompt-source-presets";
 import { uploadImage } from "@/services/image-storage";
+import { uploadMediaFile } from "@/services/file-storage";
+import { syncAppDataToWebdav } from "@/services/app-sync";
+import { testWebdavConnection } from "@/services/webdav-sync";
+import { exportCanvasProjects } from "@/lib/canvas/canvas-export";
+import { getNodePluginId, listNodeDefinitions } from "@/lib/canvas/node-registry";
 import { imageAspectOptions, imageQualityOptions, imageScaleOptions } from "@/components/image-settings-panel";
 import { videoResolutionOptions, videoSecondsRange, videoSizeOptions } from "@/components/video-settings-panel";
 import type { CanvasAgentSnapshot } from "@/lib/canvas/canvas-agent-ops";
 import { clampVideoSeconds } from "@/lib/media-size";
 import { useCanvasStore } from "@/stores/canvas/use-canvas-store";
+import { usePluginStore } from "@/stores/canvas/use-plugin-store";
 import { useAssetStore } from "@/stores/use-asset-store";
 import { modelOptionLabel, modelOptionName, normalizeModelOptionValue, selectableModelsByCapability, useConfigStore } from "@/stores/use-config-store";
+import { usePromptSourceStore } from "@/stores/use-prompt-source-store";
 import { useWorkbenchAgentStore } from "@/stores/use-workbench-agent-store";
 import { ensureDirectorDeskRecordForId, ensureDirectorDeskRecords, writeActiveDirectorDeskId } from "@/pages/director/editor/workspaces/directorDeskRegistry";
 import { openDirectorDeskFrame, setDirectorHostNavigate } from "@/lib/agent/director-desk-host";
@@ -29,6 +37,22 @@ export const SITE_TOOL_NAMES = [
     "prompts_search",
     "assets_list",
     "assets_add",
+    "assets_update",
+    "assets_delete",
+    "prompts_sources_list",
+    "prompts_source_update",
+    "prompts_source_save",
+    "prompts_source_delete",
+    "canvas_create_project",
+    "canvas_rename_project",
+    "canvas_delete_projects",
+    "canvas_export_project",
+    "config_get_channels",
+    "config_set_default_models",
+    "webdav_sync",
+    "plugin_list",
+    "plugin_set_enabled",
+    "canvas_list_node_types",
 ] as const;
 
 export type SiteToolName = (typeof SITE_TOOL_NAMES)[number];
@@ -52,6 +76,22 @@ export const SITE_TOOL_LABELS: Record<SiteToolName, string> = {
     get prompts_search() { return siteText("promptSearch"); },
     get assets_list() { return siteText("assetList"); },
     get assets_add() { return siteText("assetAdd"); },
+    get assets_update() { return siteText("assetUpdate"); },
+    get assets_delete() { return siteText("assetDelete"); },
+    get prompts_sources_list() { return siteText("promptSourcesList"); },
+    get prompts_source_update() { return siteText("promptSourceUpdate"); },
+    get prompts_source_save() { return siteText("promptSourceSave"); },
+    get prompts_source_delete() { return siteText("promptSourceDelete"); },
+    get canvas_create_project() { return siteText("canvasCreate"); },
+    get canvas_rename_project() { return siteText("canvasRename"); },
+    get canvas_delete_projects() { return siteText("canvasDelete"); },
+    get canvas_export_project() { return siteText("canvasExport"); },
+    get config_get_channels() { return siteText("channelConfig"); },
+    get config_set_default_models() { return siteText("setDefaultModels"); },
+    get webdav_sync() { return siteText("webdavSync"); },
+    get plugin_list() { return siteText("pluginList"); },
+    get plugin_set_enabled() { return siteText("pluginSetEnabled"); },
+    get canvas_list_node_types() { return siteText("nodeTypesList"); },
 };
 
 type SiteToolInput = Record<string, unknown>;
@@ -81,6 +121,38 @@ export async function runSiteTool(name: SiteToolName, input: SiteToolInput, navi
             return listAssets(input);
         case "assets_add":
             return addAsset(input);
+        case "assets_update":
+            return updateAsset(input);
+        case "assets_delete":
+            return deleteAssets(input);
+        case "prompts_sources_list":
+            return listPromptSources();
+        case "prompts_source_update":
+            return updatePromptSource(input);
+        case "prompts_source_save":
+            return savePromptSource(input);
+        case "prompts_source_delete":
+            return deletePromptSource(input);
+        case "canvas_create_project":
+            return createCanvasProject(input);
+        case "canvas_rename_project":
+            return renameCanvasProject(input, context.canvasSnapshot);
+        case "canvas_delete_projects":
+            return deleteCanvasProjects(input);
+        case "canvas_export_project":
+            return exportCanvasProject(input, context.canvasSnapshot);
+        case "config_get_channels":
+            return getChannelConfig();
+        case "config_set_default_models":
+            return setDefaultModels(input);
+        case "webdav_sync":
+            return syncWebdav(input);
+        case "plugin_list":
+            return listPlugins();
+        case "plugin_set_enabled":
+            return setPluginEnabled(input);
+        case "canvas_list_node_types":
+            return listNodeTypes();
         default:
             throw new Error(siteText("unknownTool", { name }));
     }
@@ -294,7 +366,15 @@ async function searchPrompts(input: SiteToolInput) {
     const page = Math.max(1, Math.floor(Number(input.page)) || 1);
     const pageSize = Math.max(1, Math.min(50, Math.floor(Number(input.pageSize)) || 20));
     const tags = Array.isArray(input.tags) ? input.tags.filter((tag): tag is string => typeof tag === "string") : [];
-    const result = await fetchPrompts({ keyword: String(input.keyword || ""), category: String(input.category || i18n.t("common.all")), tag: tags, page, pageSize });
+    const result = await fetchPrompts({
+        keyword: String(input.keyword || ""),
+        category: String(input.category || i18n.t("common.all")),
+        tag: tags,
+        page,
+        pageSize,
+        sourceId: typeof input.sourceId === "string" ? input.sourceId : undefined,
+        mediaType: input.mediaType === "image" || input.mediaType === "video" ? input.mediaType : undefined,
+    });
     return {
         total: result.total,
         page,
@@ -357,7 +437,232 @@ async function addAsset(input: SiteToolInput) {
         const id = store.addAsset({ kind: "image", title, coverUrl: stored.url, tags, source, note, data: { dataUrl: stored.url, storageKey: stored.storageKey, width: stored.width, height: stored.height, bytes: stored.bytes, mimeType: stored.mimeType } });
         return { ok: true, id, kind: "image" };
     }
+    if (kind === "video") {
+        const videoUrl = String(input.videoUrl || "").trim();
+        if (!videoUrl) throw new Error(siteText("videoUrlRequired"));
+        let stored;
+        try {
+            stored = await uploadMediaFile(videoUrl, "video");
+        } catch {
+            throw new Error(siteText("videoReadFailed"));
+        }
+        const id = store.addAsset({ kind: "video", title, coverUrl: "", tags, source, note, data: { url: stored.url, storageKey: stored.storageKey, width: stored.width || 0, height: stored.height || 0, bytes: stored.bytes, mimeType: stored.mimeType } });
+        return { ok: true, id, kind: "video" };
+    }
     throw new Error(siteText("assetKindUnsupported"));
+}
+
+function updateAsset(input: SiteToolInput) {
+    const store = useAssetStore.getState();
+    if (!store.hydrated) throw new Error(siteText("assetsLoading"));
+    const id = String(input.id || "");
+    const asset = store.assets.find((item) => item.id === id);
+    if (!asset) throw new Error(siteText("assetMissing", { id }));
+    const patch: Record<string, unknown> = {};
+    if (typeof input.title === "string" && input.title.trim()) patch.title = input.title.trim();
+    if (typeof input.note === "string") patch.note = input.note;
+    if (Array.isArray(input.tags)) patch.tags = input.tags.filter((tag): tag is string => typeof tag === "string");
+    if (typeof input.content === "string") {
+        if (asset.kind !== "text") throw new Error(siteText("assetContentTextOnly"));
+        patch.data = { content: input.content };
+    }
+    if (!Object.keys(patch).length) throw new Error(siteText("assetNothingToUpdate"));
+    store.updateAsset(id, patch as Parameters<typeof store.updateAsset>[1]);
+    return { ok: true, id, updated: Object.keys(patch) };
+}
+
+function deleteAssets(input: SiteToolInput) {
+    const store = useAssetStore.getState();
+    if (!store.hydrated) throw new Error(siteText("assetsLoading"));
+    const ids = Array.isArray(input.ids) ? input.ids.filter((id): id is string => typeof id === "string") : [];
+    const missing = ids.filter((id) => !store.assets.some((asset) => asset.id === id));
+    if (missing.length) throw new Error(siteText("assetMissing", { id: missing.join(", ") }));
+    ids.forEach((id) => store.removeAsset(id));
+    return { ok: true, ids, count: ids.length };
+}
+
+async function listPromptSources() {
+    const { sources, schedule } = usePromptSourceStore.getState();
+    const statuses = await fetchPromptSourceStatuses();
+    return {
+        schedule: { intervalMinutes: schedule.intervalMinutes, lastFetchedAt: schedule.lastFetchedAt },
+        sources: sources.map((source) => ({
+            id: source.id,
+            name: source.name,
+            url: source.url,
+            homepage: source.homepage,
+            mediaType: source.mediaType,
+            enabled: source.enabled,
+            builtIn: source.builtIn,
+            count: statuses[source.id]?.count ?? 0,
+            lastSuccessAt: statuses[source.id]?.lastSuccessAt || "",
+            lastError: statuses[source.id]?.lastError || "",
+        })),
+    };
+}
+
+async function updatePromptSource(input: SiteToolInput) {
+    const store = usePromptSourceStore.getState();
+    if (input.refreshAll) {
+        const summary = await refreshAllSources();
+        return { ok: true, refreshAll: true, successCount: summary.successCount, failureCount: summary.failureCount, results: summary.results.map((item) => ({ sourceId: item.sourceId, sourceName: item.sourceName, success: item.success, count: item.count, lastError: item.lastError || undefined })) };
+    }
+    const id = String(input.id || "");
+    const source = store.sources.find((item) => item.id === id);
+    if (!source) throw new Error(siteText("promptSourceMissing", { id }));
+    if (typeof input.enabled === "boolean") store.toggleSource(id, input.enabled);
+    if (input.refresh) {
+        const result = await refreshSource(id);
+        return { ok: true, id, refresh: { success: result.success, count: result.count, lastError: result.lastError || undefined } };
+    }
+    return { ok: true, id, enabled: typeof input.enabled === "boolean" ? input.enabled : source.enabled };
+}
+
+function savePromptSource(input: SiteToolInput) {
+    const store = usePromptSourceStore.getState();
+    const id = typeof input.id === "string" ? input.id : "";
+    if (id) {
+        const existing = store.sources.find((item) => item.id === id);
+        if (!existing) throw new Error(siteText("promptSourceMissing", { id }));
+        if (existing.builtIn) throw new Error(siteText("promptSourceBuiltInProtected"));
+    }
+    const source = createPromptSource({
+        id: id || undefined,
+        name: String(input.name || ""),
+        url: String(input.url || ""),
+        homepage: typeof input.homepage === "string" ? input.homepage : "",
+        mediaType: input.mediaType === "video" ? "video" : "image",
+        enabled: input.enabled !== false,
+        builtIn: false,
+    });
+    if (!source.name || !source.url) throw new Error(siteText("promptSourceFieldsRequired"));
+    store.saveSource(source);
+    return { ok: true, id: source.id, name: source.name, mediaType: source.mediaType };
+}
+
+function deletePromptSource(input: SiteToolInput) {
+    const store = usePromptSourceStore.getState();
+    const id = String(input.id || "");
+    const source = store.sources.find((item) => item.id === id);
+    if (!source) throw new Error(siteText("promptSourceMissing", { id }));
+    if (source.builtIn) throw new Error(siteText("promptSourceBuiltInProtected"));
+    store.removeSource(id);
+    return { ok: true, id };
+}
+
+function createCanvasProject(input: SiteToolInput) {
+    const title = String(input.title || "").trim() || undefined;
+    const id = useCanvasStore.getState().createProject(title);
+    return { ok: true, id, title, hint: siteText("canvasCreateHint") };
+}
+
+function renameCanvasProject(input: SiteToolInput, snapshot?: CanvasAgentSnapshot | null) {
+    const store = useCanvasStore.getState();
+    if (!store.hydrated) throw new Error(siteText("canvasLoading"));
+    const id = String(input.projectId || snapshot?.projectId || "");
+    const title = String(input.title || "").trim();
+    if (!title) throw new Error(siteText("canvasTitleRequired"));
+    if (!id || !store.projects.some((project) => project.id === id)) throw new Error(siteText("canvasProjectMissing", { id }));
+    store.renameProject(id, title);
+    return { ok: true, id, title };
+}
+
+function deleteCanvasProjects(input: SiteToolInput) {
+    const store = useCanvasStore.getState();
+    if (!store.hydrated) throw new Error(siteText("canvasLoading"));
+    const ids = Array.isArray(input.ids) ? input.ids.filter((id): id is string => typeof id === "string") : [];
+    const missing = ids.filter((id) => !store.projects.some((project) => project.id === id));
+    if (missing.length) throw new Error(siteText("canvasProjectMissing", { id: missing.join(", ") }));
+    store.deleteProjects(ids);
+    return { ok: true, ids, count: ids.length, note: siteText("canvasDeleteNote") };
+}
+
+async function exportCanvasProject(input: SiteToolInput, snapshot?: CanvasAgentSnapshot | null) {
+    const store = useCanvasStore.getState();
+    if (!store.hydrated) throw new Error(siteText("canvasLoading"));
+    const id = String(input.projectId || snapshot?.projectId || "");
+    const project = store.projects.find((item) => item.id === id);
+    if (!project) throw new Error(siteText("canvasProjectMissing", { id }));
+    await exportCanvasProjects([project], project.title);
+    return { ok: true, id, title: project.title, nodeCount: project.nodes.length, connectionCount: project.connections.length, note: siteText("canvasExportNote") };
+}
+
+function getChannelConfig() {
+    const { config } = useConfigStore.getState();
+    return {
+        defaultModels: {
+            text: config.textModel || config.model,
+            image: config.imageModel || config.model,
+            video: config.videoModel || config.model,
+            audio: config.audioModel || config.model,
+        },
+        channels: config.channels.map((channel) => ({
+            id: channel.id,
+            name: channel.name,
+            baseUrl: channel.baseUrl,
+            apiFormat: channel.apiFormat,
+            models: channel.models.map((model) => ({ name: model.name, capability: model.capability })),
+        })),
+        note: siteText("channelConfigNote"),
+    };
+}
+
+function setDefaultModels(input: SiteToolInput) {
+    const store = useConfigStore.getState();
+    const applied: Record<string, string> = {};
+    (["textModel", "imageModel", "videoModel", "audioModel"] as const).forEach((field) => {
+        const value = typeof input[field] === "string" ? (input[field] as string).trim() : "";
+        if (!value) return;
+        const normalized = normalizeModelOptionValue(value, store.config.channels) || value;
+        store.updateConfig(field, normalized);
+        applied[field] = normalized;
+    });
+    if (!Object.keys(applied).length) throw new Error(siteText("modelNothingToUpdate"));
+    return { ok: true, applied };
+}
+
+async function syncWebdav(input: SiteToolInput) {
+    const { webdav } = useConfigStore.getState();
+    if (!webdav.url?.trim()) throw new Error(siteText("webdavNotConfigured"));
+    if (input.action === "test") {
+        await testWebdavConnection(webdav);
+        return { ok: true, action: "test" };
+    }
+    const result = await syncAppDataToWebdav(webdav);
+    return { ok: true, action: "sync", projects: result.projects, assets: result.assets, imageLogs: result.imageLogs, videoLogs: result.videoLogs, files: result.files, uploadedFiles: result.uploadedFiles, syncedAt: result.syncedAt };
+}
+
+function listPlugins() {
+    const { plugins } = usePluginStore.getState();
+    return {
+        total: plugins.length,
+        items: plugins.map((plugin) => ({ id: plugin.id, name: plugin.name, version: plugin.version, description: plugin.description, url: plugin.url, enabled: plugin.enabled, local: plugin.local, official: plugin.official, installedAt: plugin.installedAt })),
+    };
+}
+
+function setPluginEnabled(input: SiteToolInput) {
+    const store = usePluginStore.getState();
+    const id = String(input.id || "");
+    const plugin = store.plugins.find((item) => item.id === id);
+    if (!plugin) throw new Error(siteText("pluginMissing", { id }));
+    const enabled = input.enabled !== false;
+    store.setEnabled(id, enabled);
+    return { ok: true, id, name: plugin.name, enabled, note: siteText("pluginToggleNote") };
+}
+
+function listNodeTypes() {
+    const definitions = listNodeDefinitions();
+    return {
+        total: definitions.length,
+        items: definitions.map((definition) => ({
+            type: definition.type,
+            title: definition.title,
+            pluginId: getNodePluginId(definition.type),
+            width: definition.defaultSize.width,
+            height: definition.defaultSize.height,
+        })),
+        hint: siteText("nodeTypesHint"),
+    };
 }
 
 function paginate(input: SiteToolInput, total: number, defaultSize: number) {

@@ -36,6 +36,8 @@ jobs:
         run: cp web/dist/index.html web/dist/404.html
 
       - uses: actions/configure-pages@v5
+        with:
+          enablement: true
 
       - uses: actions/upload-pages-artifact@v3
         with:

@@ -20,6 +20,7 @@ type AgentBridgeParams = {
     selectedNodeIdsRef: MutableRefObject<Set<string>>;
     viewportRef: MutableRefObject<ViewportTransform>;
     generateNodeRef: GenerateNodeRef;
+    pageActionRef: MutableRefObject<((name: string, input: Record<string, unknown>) => Promise<unknown>) | null>;
     setNodes: Dispatch<SetStateAction<CanvasNodeData[]>>;
     setConnections: Dispatch<SetStateAction<CanvasConnection[]>>;
     setSelectedNodeIds: Dispatch<SetStateAction<Set<string>>>;
@@ -33,7 +34,7 @@ type AgentBridgeParams = {
  * to the Agent store for the local Codex panel. All members except applyAgentOps are internal.
  */
 export function useAgentBridge(params: AgentBridgeParams) {
-    const { projectId, title, nodes, connections, selectedNodeIds, viewport, nodesRef, connectionsRef, selectedNodeIdsRef, viewportRef, generateNodeRef, setNodes, setConnections, setSelectedNodeIds, setSelectedConnectionId, setViewport, setContextMenu } =
+    const { projectId, title, nodes, connections, selectedNodeIds, viewport, nodesRef, connectionsRef, selectedNodeIdsRef, viewportRef, generateNodeRef, pageActionRef, setNodes, setConnections, setSelectedNodeIds, setSelectedConnectionId, setViewport, setContextMenu } =
         params;
     const setAgentCanvasContext = useAgentStore((state) => state.setCanvasContext);
     const [agentUndoSnapshot, setAgentUndoSnapshot] = useState<CanvasAgentSnapshot | null>(null);
@@ -89,10 +90,17 @@ export function useAgentBridge(params: AgentBridgeParams) {
         return { ...agentUndoSnapshot, projectId, title: projectTitle };
     }, [agentUndoSnapshot, projectTitle, projectId]);
 
+    // Agent 面板随时可能调用页面动作；ref 在页面渲染后期才赋值，因此经稳定委托转发，无需随快照重建上下文。
+    const runAgentPageAction = useCallback((name: string, input: Record<string, unknown>) => {
+        const handler = pageActionRef.current;
+        if (!handler) return Promise.reject(new Error(i18n.t("agent.runtime.openCanvasFirst")));
+        return handler(name, input);
+    }, []);
+
     useEffect(() => {
-        setAgentCanvasContext({ snapshot: agentSnapshot, applyOps: applyAgentOps, undoOps: undoAgentOps, canUndo: Boolean(agentUndoSnapshot) });
+        setAgentCanvasContext({ snapshot: agentSnapshot, applyOps: applyAgentOps, undoOps: undoAgentOps, canUndo: Boolean(agentUndoSnapshot), pageAction: runAgentPageAction });
         return () => setAgentCanvasContext(null);
-    }, [agentSnapshot, applyAgentOps, agentUndoSnapshot, setAgentCanvasContext, undoAgentOps]);
+    }, [agentSnapshot, applyAgentOps, agentUndoSnapshot, runAgentPageAction, setAgentCanvasContext, undoAgentOps]);
 
     return { applyAgentOps };
 }

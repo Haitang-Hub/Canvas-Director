@@ -17,7 +17,9 @@ import { SkillStore, SkillStoreError } from "../skills/store.js";
 /** 启动仅监听本机的 Canvas Agent HTTP 服务。 */
 export function startHttpServer() {
     const config = loadConfig(true);
-    const port = Number(process.env.PORT) || Number(new URL(config.url).port) || DEFAULT_PORT;
+    // 端口只认 PORT 环境变量或默认 17371：配置文件里的 url 是启动后回写给网页自动发现的，
+    // 不作为端口来源，否则一次改端口的运行会被后续启动永久沿用。
+    const port = Number(process.env.PORT) || DEFAULT_PORT;
     config.url = `http://127.0.0.1:${port}`;
     saveConfig(config);
 

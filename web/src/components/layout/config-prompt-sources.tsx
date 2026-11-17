@@ -1,11 +1,13 @@
+import { GithubOutlined } from "@ant-design/icons";
 import { App, Button, Select, Switch, Tag } from "antd";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Eye, Pencil, Plus, RefreshCw, Trash2 } from "lucide-react";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import { PromptSourceEditorDrawer } from "./prompt-source-editor-drawer";
 import { PromptSourceContentModal } from "./prompt-source-content-modal";
+import { PromptGithubPickerModal } from "./prompt-github-picker-modal";
 import { fetchPromptSourceStatuses, refreshAllSources, refreshSource } from "@/services/api/prompts";
 import { PROMPT_SOURCE_INTERVALS, usePromptSourceStore } from "@/stores/use-prompt-source-store";
 import type { PromptSource } from "@/services/api/prompt-source-presets";
@@ -29,7 +31,9 @@ export function ConfigPromptSources() {
     const [viewingId, setViewingId] = useState("");
     const [refreshingId, setRefreshingId] = useState("");
     const [refreshingAll, setRefreshingAll] = useState(false);
+    const [pickerOpen, setPickerOpen] = useState(false);
     const viewingSource = sources.find((item) => item.id === viewingId) || null;
+    const existingHomepages = useMemo(() => new Set(sources.map((source) => source.homepage.toLowerCase())), [sources]);
     const intervalOptions = PROMPT_SOURCE_INTERVALS.map((value) => ({ value, label: t(`config.promptSources.intervals.${intervalKey(value)}`) }));
 
     const invalidatePrompts = async () => {
@@ -88,9 +92,19 @@ export function ConfigPromptSources() {
         }
     };
 
+    const handleGithubAdd = (addedSources: PromptSource[]) => {
+        addedSources.forEach(saveSource);
+        void invalidatePrompts();
+        message.success(t("config.promptSources.github.addedSuccess", { count: addedSources.length }));
+        setPickerOpen(false);
+    };
+
     return (
         <div>
             <div className="mb-4 flex flex-wrap items-center justify-end gap-3">
+                <Button icon={<GithubOutlined />} onClick={() => setPickerOpen(true)}>
+                    {t("config.promptSources.github.open")}
+                </Button>
                 <Button type="primary" icon={<Plus className="size-4" />} onClick={() => setEditingSource(addSource())}>
                     {t("config.promptSources.add")}
                 </Button>
@@ -105,6 +119,7 @@ export function ConfigPromptSources() {
                             <div className="min-w-[220px] flex-1">
                                 <div className="flex min-w-0 items-center gap-2">
                                     <span className="truncate text-sm font-semibold">{source.name}</span>
+                                    <Tag className="m-0 shrink-0 text-[10px]">{t(`config.promptSources.media.${source.mediaType}`)}</Tag>
                                     {source.builtIn ? <Tag className="m-0 shrink-0 text-[10px]">{t("config.promptSources.builtIn")}</Tag> : null}
                                 </div>
                                 <div className="mt-1 flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1 text-xs text-stone-500">
@@ -148,6 +163,7 @@ export function ConfigPromptSources() {
 
             <PromptSourceEditorDrawer open={Boolean(editingSource)} source={editingSource} onSave={handleSave} onClose={() => setEditingSource(null)} />
             <PromptSourceContentModal source={viewingSource} onClose={() => setViewingId("")} />
+            <PromptGithubPickerModal open={pickerOpen} existingHomepages={existingHomepages} onAdd={handleGithubAdd} onClose={() => setPickerOpen(false)} />
         </div>
     );
 }

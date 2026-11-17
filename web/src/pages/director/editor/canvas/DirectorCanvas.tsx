@@ -28,6 +28,7 @@ import {
 } from "../io/cleanFrameExport";
 import { buildScreenshotMeta, type ScreenshotResult } from "../io/screenshotExport";
 import { useDirectorStore, type CameraShotSnapshot } from "../store/directorStore";
+import { useConfigStore } from "@/stores/use-config-store";
 import { DEFAULT_DIRECTOR_CAMERA_VIEW_SNAPSHOT } from "../schema/cameraGeometry";
 import { DEFAULT_CAMERA_MOTION_PATH, getCameraMotionPath } from "../schema/cameraMotion";
 import type { DirectorAssetRef, DirectorObject, DirectorTransform, SceneSettings } from "../schema/directorProject";
@@ -973,6 +974,8 @@ export function DirectorCanvas() {
   const cameraPilotLockedTargetId = useDirectorStore((state) => state.cameraPilotLockedTargetId);
   const cameraPilotLockedPoint = useDirectorStore((state) => state.cameraPilotLockedPoint);
   const sceneObjects = useDirectorStore((state) => state.project.objects);
+  const selectedObjectId = useDirectorStore((state) => state.selectedObjectId);
+  const selectedObjectIds = useDirectorStore((state) => state.selectedObjectIds);
   const panoramaAsset = useDirectorStore((state) =>
     state.project.assets.find((asset) => asset.id === state.project.panoramaAssetId) as DirectorAssetRef | undefined
   );
@@ -1327,6 +1330,25 @@ export function DirectorCanvas() {
       commitDirectorViewSnapshot(pendingDirectorViewSnapshotRef.current);
     }, Math.max(0, DIRECTOR_SNAPSHOT_UI_INTERVAL_MS - elapsed));
   }
+
+  // 选中自动居中：与画布页 autoFocusOnSelect 行为对齐——选中变化时把视口相机 target 移到物体位置，机位保持不动。
+  // 仅导演视角生效；首次挂载不居中，避免带着历史选中打开导演台时相机突跳。
+  const lastAutoFocusedObjectIdRef = useRef<string | null | undefined>(undefined);
+  useEffect(() => {
+    const primaryId = selectedObjectId || selectedObjectIds[0] || "";
+    if (lastAutoFocusedObjectIdRef.current === undefined) {
+      lastAutoFocusedObjectIdRef.current = primaryId;
+      return;
+    }
+    if (lastAutoFocusedObjectIdRef.current === primaryId) return;
+    lastAutoFocusedObjectIdRef.current = primaryId;
+    if (!primaryId || viewMode !== "director") return;
+    if (!useConfigStore.getState().config.autoFocusOnSelect) return;
+    const object = useDirectorStore.getState().project.objects.find((item) => item.id === primaryId);
+    if (!object) return;
+    const [x, y, z] = object.transform.position;
+    updateDirectorViewSnapshot({ ...viewportCameraSnapshotRef.current, target: [x, y, z] }, true);
+  }, [selectedObjectId, selectedObjectIds, viewMode]);
 
   function updateViewportGizmoSnapshot(snapshot: CameraShotSnapshot) {
     if (viewMode !== "director") {

@@ -1,5 +1,7 @@
 import { useEffect, useRef } from "react";
 
+import { saveAs } from "file-saver";
+
 import { createCanvasNode, imageMetadata, videoMetadata } from "@/lib/canvas/canvas-node-factory";
 import { useCanvasStore } from "@/stores/canvas/use-canvas-store";
 import { uploadMediaFile } from "@/services/file-storage";
@@ -9,17 +11,20 @@ import { nanoid } from "nanoid";
 
 import { requestCleanFrameExport } from "../io/cleanFrameExport";
 import { requestReferenceVideoExport } from "../io/referenceVideoExport";
+import { serializeProject } from "../io/exportProjectJson";
 import { getCameraMotionPath } from "../schema/cameraMotion";
-import { getObjectMotionSnapshot } from "../schema/objectMotion";
+import { getObjectMotionSnapshot, normalizeObjectMotionPath } from "../schema/objectMotion";
+import { createImportedCharacterActionId } from "../schema/importedCharacterAction";
 import { getDirectorObjectFocusTarget } from "../schema/cameraTarget";
 import { DIRECTOR_CAMERA_TARGET_BODY_PART_OPTIONS, type DirectorCameraTargetBodyPart } from "../schema/semanticBody";
-import { GEOMETRY_PRIMITIVE_OPTIONS } from "../schema/directorProject";
+import { GEOMETRY_PRIMITIVE_OPTIONS, type DirectorRouteCubicBezier } from "../schema/directorProject";
 import { MANNEQUIN_POSE_PRESETS } from "../presets/mannequinPosePresets";
 import { CHARACTER_ACTION_PRESETS } from "../presets/characterActionPresets";
 import { CAMERA_PATH_TEMPLATES, createCameraPathTemplate } from "../motion/cameraPathTemplates";
 import { getModelLibraryItems, MODEL_LIBRARY_CATEGORIES } from "../modelLibrary/modelLibraryCatalog";
 import { GROUND_MATERIAL_PRESETS } from "../canvas/groundMaterialPresets";
 import { CAMERA_MOTION_PRESETS, getCameraMotionPresetPatch } from "../motion/cameraMotionPresets";
+import { PERFORMANCE_PROFILE_OPTIONS } from "../performance/performanceProfiles";
 import { useDirectorStore } from "../store/directorStore";
 import { readActiveDirectorDeskId } from "../workspaces/directorDeskRegistry";
 
@@ -81,6 +86,18 @@ type DirectorToolInput = {
     duration?: number;
     interpolation?: "linear" | "smooth";
     speedMode?: "uniform" | "soft" | "custom";
+    loop?: boolean;
+    customEasing?: number[];
+    groundHeight?: number;
+    panoramaRadius?: number;
+    pathCollisionEnabled?: boolean;
+    performanceProfile?: "auto" | "fluid" | "quality";
+    viewMode?: "director" | "camera";
+    facingMode?: "path" | "manual";
+    holdAction?: "stand" | "current" | "custom";
+    holdActionPresetId?: string | null;
+    actionPresetId?: string | null;
+    download?: boolean;
     presetId?: string;
     position?: "current" | "first" | "last";
     quality?: "720p" | "1080p";
@@ -90,7 +107,7 @@ type DirectorToolInput = {
     returnToCanvas?: boolean;
 };
 
-const DIRECTOR_AGENT_PROTOCOL_VERSION = 8;
+const DIRECTOR_AGENT_PROTOCOL_VERSION = 9;
 /** 桥实现版本：服务端在多个导演台页面同时连接时优先路由到最新版本。 */
 const DIRECTOR_BRIDGE_VERSION = 6;
 
@@ -164,6 +181,32 @@ function applyObjectPlacement(objectId: string, input: DirectorToolInput) {
         return [object.transform.scale[0] * factor, object.transform.scale[1] * factor, object.transform.scale[2] * factor] as [number, number, number];
     })() : object.transform.scale;
     useDirectorStore.getState().updateObjectTransform(objectId, { position, rotation, scale });
+}
+
+/** 统一应用角色/道具路线点的位置、时间与停留设置：rotation 为绕 Y 轴角度（度），time 为到达时间占比 0~1。 */
+function applyObjectRouteKeyframePatch(objectId: string, keyframeId: string, input: DirectorToolInput) {
+    type ObjectMotionKeyframePatch = Parameters<ReturnType<typeof useDirectorStore.getState>["updateObjectMotionKeyframe"]>[2];
+    const patch: Record<string, unknown> = {};
+    if (input.x !== undefined || input.y !== undefined || input.z !== undefined || input.rotation !== undefined) {
+        const object = useDirectorStore.getState().project.objects.find((item) => item.id === objectId);
+        const current = object?.motionPath?.keyframes.find((item) => item.id === keyframeId)?.transform;
+        const position = current?.position ?? object?.transform.position ?? ([0, 0, 0] as [number, number, number]);
+        const rotation = current?.rotation ?? object?.transform.rotation ?? ([0, 0, 0] as [number, number, number]);
+        patch.transform = {
+            position: [input.x ?? position[0], input.y ?? position[1], input.z ?? position[2]],
+            rotation: input.rotation !== undefined ? [rotation[0], (input.rotation * Math.PI) / 180, rotation[2]] : rotation,
+            scale: current?.scale ?? object?.transform.scale ?? ([1, 1, 1] as [number, number, number]),
+        };
+    }
+    if (input.time !== undefined) patch.time = input.time;
+    if (input.facingMode !== undefined) patch.facingMode = input.facingMode;
+    if (input.pointBehavior !== undefined) patch.pointBehavior = input.pointBehavior;
+    if (input.holdSeconds !== undefined) patch.holdSeconds = input.holdSeconds;
+    if (input.holdAction !== undefined) patch.holdAction = input.holdAction;
+    if (input.holdActionPresetId !== undefined) patch.holdActionPresetId = input.holdActionPresetId;
+    if (input.actionPresetId !== undefined) patch.actionPresetId = input.actionPresetId;
+    if (!Object.keys(patch).length) return;
+    useDirectorStore.getState().updateObjectMotionKeyframe(objectId, keyframeId, patch as ObjectMotionKeyframePatch);
 }
 
 export async function runDirectorTool(name: string, input: DirectorToolInput) {
@@ -250,6 +293,8 @@ export async function runDirectorTool(name: string, input: DirectorToolInput) {
                 },
                 motionTiming: CAMERA_MOTION_PRESETS.map((preset) => ({ id: preset.id, label: preset.label, ...preset.patch })),
                 cameraBodyParts: DIRECTOR_CAMERA_TARGET_BODY_PART_OPTIONS.map((option) => ({ id: option.value, label: option.label })),
+                importedAnimations: (useDirectorStore.getState().project.animationAssets ?? []).flatMap((animationAsset) => animationAsset.clips.map((clip) => ({ id: createImportedCharacterActionId(animationAsset.id, clip.id), label: `${animationAsset.name} · ${clip.name}`, duration: clip.duration, animationAssetId: animationAsset.id, clipId: clip.id }))),
+                performanceProfiles: PERFORMANCE_PROFILE_OPTIONS.map((option) => ({ id: option.id, label: option.label })),
             };
         }
         case "stage_list_models": {
@@ -358,7 +403,9 @@ export async function runDirectorTool(name: string, input: DirectorToolInput) {
                 store.applyPosePreset(input.objectId, input.pose as Parameters<typeof store.applyPosePreset>[1]);
             }
             if (input.action !== undefined) {
-                if (input.action && !CHARACTER_ACTION_PRESETS.some((preset) => preset.id === input.action)) throw new Error(`未知动作预设：${input.action}，用 stage_list_presets 查询可用值`);
+                // 允许内置动作预设与导入动画 clip（stage_list_presets.importedAnimations 返回的 id）。
+                const importedActionId = input.action && (useDirectorStore.getState().project.animationAssets ?? []).some((animationAsset) => animationAsset.clips.some((clip) => createImportedCharacterActionId(animationAsset.id, clip.id) === input.action));
+                if (input.action && !CHARACTER_ACTION_PRESETS.some((preset) => preset.id === input.action) && !importedActionId) throw new Error(`未知动作预设：${input.action}，用 stage_list_presets 查询可用值`);
                 store.applyCharacterActionPreset(input.objectId, input.action || null);
             }
             if (input.poseControls) {
@@ -477,6 +524,8 @@ export async function runDirectorTool(name: string, input: DirectorToolInput) {
             if (input.interpolation !== undefined) patch.interpolation = input.interpolation;
             if (input.easing !== undefined) patch.easing = input.easing;
             if (input.speedMode !== undefined) patch.speedMode = input.speedMode;
+            if (input.loop !== undefined) patch.loop = input.loop;
+            if (Array.isArray(input.customEasing) && input.customEasing.length >= 4) patch.customEasing = input.customEasing.slice(0, 4).map(Number) as DirectorRouteCubicBezier;
             store.updateCameraMotionPath(cameraId, patch);
             return { cameraId, applied: Object.keys(patch) };
         }
@@ -514,7 +563,7 @@ export async function runDirectorTool(name: string, input: DirectorToolInput) {
             return { aspectRatio: input.ratio };
         }
         case "scene_update": {
-            const sceneKeys = ["backgroundColor", "backgroundBrightness", "panoramaYaw", "showGrid", "showGround", "showLabels", "snapToGrid", "groundColor", "groundBrightness", "groundOpacity", "groundTextureScale"] as const;
+            const sceneKeys = ["backgroundColor", "backgroundBrightness", "panoramaYaw", "showGrid", "showGround", "showLabels", "snapToGrid", "groundColor", "groundBrightness", "groundOpacity", "groundTextureScale", "scale", "groundHeight", "panoramaRadius", "pathCollisionEnabled"] as const;
             const patch: Record<string, unknown> = {};
             sceneKeys.forEach((key) => {
                 if (input[key] !== undefined) patch[key] = input[key];
@@ -525,8 +574,9 @@ export async function runDirectorTool(name: string, input: DirectorToolInput) {
                 }
                 patch.groundMaterialPreset = input.groundMaterialPreset;
             }
-            if (!Object.keys(patch).length) throw new Error("没有需要修改的场景字段");
-            store.updateScene(patch as Parameters<typeof store.updateScene>[0]);
+            if (input.performanceProfile !== undefined) store.setPerformanceProfile(input.performanceProfile);
+            if (!Object.keys(patch).length && input.performanceProfile === undefined) throw new Error("没有需要修改的场景字段");
+            if (Object.keys(patch).length) store.updateScene(patch as Parameters<typeof store.updateScene>[0]);
             const scene = useDirectorStore.getState().project.scene;
             return { applied: Object.keys(patch), scene: { backgroundColor: scene.backgroundColor, groundMaterialPreset: scene.groundMaterialPreset, showGrid: scene.showGrid, showGround: scene.showGround } };
         }
@@ -584,6 +634,103 @@ export async function runDirectorTool(name: string, input: DirectorToolInput) {
             if (input.returnToCanvas === false) return summary;
             const canvasNodeId = await appendAnimaticToCanvas(result.blob);
             return canvasNodeId ? { ...summary, returnedToCanvas: true, canvasNodeId } : summary;
+        }
+        case "timeline_get": {
+            const state = useDirectorStore.getState();
+            const project = state.project;
+            const activeCamera = project.cameras.find((camera) => camera.id === project.activeCameraId);
+            const durationSeconds = activeCamera ? getCameraMotionPath(activeCamera).duration : 0;
+            return {
+                progress: state.cameraMotionProgress,
+                timeSeconds: state.cameraMotionProgress * durationSeconds,
+                durationSeconds,
+                playing: state.cameraMotionPlaying,
+                viewMode: state.viewMode,
+                activeCameraId: project.activeCameraId,
+                performanceProfile: state.performanceProfile,
+            };
+        }
+        case "object_route_get": {
+            const project = useDirectorStore.getState().project;
+            const targets = input.objectId ? project.objects.filter((item) => item.id === input.objectId) : project.objects;
+            if (input.objectId && !targets.length) throw new Error(`找不到对象：${input.objectId}`);
+            const activeCamera = project.cameras.find((camera) => camera.id === project.activeCameraId);
+            const durationSeconds = activeCamera ? getCameraMotionPath(activeCamera).duration : 0;
+            return {
+                durationSeconds,
+                routes: targets.flatMap((object) => {
+                    if (!object.motionPath?.keyframes.length) return [];
+                    return [{
+                        objectId: object.id,
+                        name: object.name,
+                        kind: object.kind,
+                        interpolation: object.motionPath.interpolation,
+                        speedMode: object.motionPath.speedMode ?? null,
+                        customEasing: object.motionPath.customEasing ?? null,
+                        keyframes: object.motionPath.keyframes.map((keyframe) => ({ id: keyframe.id, time: keyframe.time, position: keyframe.transform.position, rotationY: Math.round((keyframe.transform.rotation[1] * 180) / Math.PI), facingMode: keyframe.facingMode ?? "manual", pointBehavior: keyframe.pointBehavior ?? "pass", holdSeconds: keyframe.holdSeconds ?? 0, holdAction: keyframe.holdAction ?? "current", holdActionPresetId: keyframe.holdActionPresetId ?? null, actionPresetId: keyframe.actionPresetId ?? null })),
+                    }];
+                }),
+            };
+        }
+        case "object_route_update": {
+            if (!input.objectId) throw new Error("缺少 objectId");
+            const object = useDirectorStore.getState().project.objects.find((item) => item.id === input.objectId);
+            if (!object) throw new Error(`找不到对象：${input.objectId}`);
+            const patch: Record<string, unknown> = {};
+            if (input.interpolation !== undefined) patch.interpolation = input.interpolation;
+            if (input.speedMode !== undefined) patch.speedMode = input.speedMode;
+            if (Array.isArray(input.customEasing) && input.customEasing.length >= 4) patch.customEasing = input.customEasing.slice(0, 4).map(Number) as DirectorRouteCubicBezier;
+            if (!Object.keys(patch).length) throw new Error("没有需要修改的路线字段");
+            store.updateObjectMotionPath(input.objectId, patch as Parameters<typeof store.updateObjectMotionPath>[1]);
+            return { objectId: input.objectId, applied: Object.keys(patch) };
+        }
+        case "object_route_keyframe_add": {
+            if (!input.objectId) throw new Error("缺少 objectId");
+            const state = useDirectorStore.getState();
+            const object = state.project.objects.find((item) => item.id === input.objectId);
+            if (!object) throw new Error(`找不到对象：${input.objectId}`);
+            let keyframeId: string | null;
+            if (object.kind === "character") {
+                keyframeId = state.addCharacterRoutePoint(input.objectId);
+            } else {
+                const path = normalizeObjectMotionPath(object.motionPath, object.transform);
+                if (path.keyframes.length >= 2) {
+                    keyframeId = state.insertObjectMotionKeyframeAfter(input.objectId, path.keyframes[path.keyframes.length - 1].id);
+                } else {
+                    keyframeId = `${input.objectId}_motion_key_${path.keyframes.length + 1}`;
+                    state.updateObjectMotionPath(input.objectId, {
+                        keyframes: [...path.keyframes, { id: keyframeId, time: path.keyframes.length === 0 ? 0 : 1, transform: { position: [...object.transform.position] as [number, number, number], rotation: [...object.transform.rotation] as [number, number, number], scale: [...object.transform.scale] as [number, number, number] }, actionPresetId: null, facingMode: "path", pointBehavior: "pass", holdSeconds: 0, holdAction: "current", holdActionPresetId: null }],
+                    });
+                }
+            }
+            if (!keyframeId) throw new Error(`添加路线点失败：${input.objectId}`);
+            applyObjectRouteKeyframePatch(input.objectId, keyframeId, input);
+            return { objectId: input.objectId, keyframeId, keyframeCount: useDirectorStore.getState().project.objects.find((item) => item.id === input.objectId)?.motionPath?.keyframes.length ?? 0 };
+        }
+        case "object_route_keyframe_update": {
+            if (!input.objectId || !input.keyframeId) throw new Error("缺少 objectId 或 keyframeId");
+            const object = useDirectorStore.getState().project.objects.find((item) => item.id === input.objectId);
+            const keyframe = object?.motionPath?.keyframes.find((item) => item.id === input.keyframeId);
+            if (!object || !keyframe) throw new Error(`找不到路线点：${input.keyframeId}，用 object_route_get 查询`);
+            applyObjectRouteKeyframePatch(input.objectId, input.keyframeId, input);
+            return { objectId: input.objectId, keyframeId: input.keyframeId };
+        }
+        case "object_route_keyframe_delete": {
+            if (!input.objectId || !input.keyframeId) throw new Error("缺少 objectId 或 keyframeId");
+            const object = useDirectorStore.getState().project.objects.find((item) => item.id === input.objectId);
+            if (!object?.motionPath?.keyframes.some((item) => item.id === input.keyframeId)) throw new Error(`找不到路线点：${input.keyframeId}，用 object_route_get 查询`);
+            store.deleteObjectMotionKeyframe(input.objectId, input.keyframeId);
+            return { objectId: input.objectId, keyframeId: input.keyframeId, deleted: true };
+        }
+        case "viewport_set_view_mode": {
+            if (!input.viewMode) throw new Error("缺少 viewMode，可选 director/camera");
+            store.setViewMode(input.viewMode);
+            return { viewMode: useDirectorStore.getState().viewMode };
+        }
+        case "director_project_export": {
+            const json = JSON.stringify(serializeProject(useDirectorStore.getState().project), null, 2);
+            if (input.download) saveAs(new Blob([json], { type: "application/json" }), `director-project-${readActiveDirectorDeskId() || Date.now()}.json`);
+            return { json, downloaded: input.download === true };
         }
         default:
             throw new Error(`未知导演台工具：${name}`);

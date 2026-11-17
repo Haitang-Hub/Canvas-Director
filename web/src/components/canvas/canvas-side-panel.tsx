@@ -1,7 +1,7 @@
 import { memo, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
-import { App, Empty, Input, Popconfirm, Select, Spin, Tag } from "antd";
+import { App, Empty, Input, Popconfirm, Segmented, Select, Spin, Tag } from "antd";
 import { useQuery } from "@tanstack/react-query";
-import { BookOpen, Check, ChevronRight, Download, Eye, FileText, Image as ImageIcon, LayoutGrid, ListChecks, Music2, Plus, Rows3, Search, Settings2, Square, Trash2, Type, Video } from "lucide-react";
+import { Check, ChevronRight, Download, Eye, FileText, Image as ImageIcon, LayoutGrid, ListChecks, Music2, Plus, Rows3, Search, Settings2, Square, Trash2, Type, Video } from "lucide-react";
 import { motion } from "motion/react";
 import { useTranslation } from "react-i18next";
 
@@ -11,6 +11,7 @@ import { getNodeDefinition } from "@/lib/canvas/node-registry";
 import { cn } from "@/lib/utils";
 import { PromptDetailDialog } from "@/pages/prompts/components/prompt-detail-dialog";
 import { fetchSourcePrompts, type Prompt } from "@/services/api/prompts";
+import type { PromptSourceMediaType } from "@/services/api/prompt-source-presets";
 import { uploadMediaFile } from "@/services/file-storage";
 import { uploadImage } from "@/services/image-storage";
 import { useAssetStore, type Asset, type AssetKind } from "@/stores/use-asset-store";
@@ -517,7 +518,8 @@ const CanvasPromptsTab = memo(function CanvasPromptsTab({ onInsert, theme }: { o
     const { message } = App.useApp();
     const { t } = useTranslation();
     const sources = usePromptSourceStore((state) => state.sources);
-    const enabledSources = useMemo(() => sources.filter((source) => source.enabled), [sources]);
+    const [mediaFilter, setMediaFilter] = useState<"all" | PromptSourceMediaType>("all");
+    const enabledSources = useMemo(() => sources.filter((source) => source.enabled && (mediaFilter === "all" || source.mediaType === mediaFilter)), [sources, mediaFilter]);
     const [keyword, setKeyword] = useState("");
     const [expanded, setExpanded] = useState<Record<string, boolean>>({});
     const [detail, setDetail] = useState<Prompt | null>(null);
@@ -535,6 +537,7 @@ const CanvasPromptsTab = memo(function CanvasPromptsTab({ onInsert, theme }: { o
         <div className="flex h-full flex-col">
             <div className="px-3 pb-2.5 pt-1">
                 <Input size="small" allowClear prefix={<Search className="size-3.5 text-stone-400" />} placeholder={t("canvas.sidePanel.searchPrompts")} value={keyword} onChange={(e) => setKeyword(e.target.value)} />
+                <Segmented className="!mt-3" block size="small" value={mediaFilter} onChange={(value) => setMediaFilter(value as "all" | PromptSourceMediaType)} options={[{ value: "all", label: t("common.all") }, { value: "image", label: t("canvas.sidePanel.filter.image") }, { value: "video", label: t("canvas.sidePanel.filter.video") }]} />
             </div>
             <div className="min-h-0 flex-1 overflow-y-auto px-2 pb-3">
                 <div className="space-y-1">
@@ -543,6 +546,7 @@ const CanvasPromptsTab = memo(function CanvasPromptsTab({ onInsert, theme }: { o
                             key={source.id}
                             sourceId={source.id}
                             sourceName={source.name}
+                            mediaType={source.mediaType}
                             keyword={keyword}
                             open={!!expanded[source.id]}
                             theme={theme}
@@ -561,6 +565,7 @@ const CanvasPromptsTab = memo(function CanvasPromptsTab({ onInsert, theme }: { o
 function PromptSourceGroup({
     sourceId,
     sourceName,
+    mediaType,
     keyword,
     open,
     theme,
@@ -570,6 +575,7 @@ function PromptSourceGroup({
 }: {
     sourceId: string;
     sourceName: string;
+    mediaType: PromptSourceMediaType;
     keyword: string;
     open: boolean;
     theme: CanvasTheme;
@@ -578,6 +584,7 @@ function PromptSourceGroup({
     onView: (prompt: Prompt) => void;
 }) {
     const { t } = useTranslation();
+    const TypeIcon = mediaType === "video" ? Video : ImageIcon;
     // Cache a source after its first expansion to avoid repeated requests; search results also need the data for counts.
     const showResults = open || !!keyword.trim();
     const query = useQuery({ queryKey: ["side-panel-prompts", sourceId], queryFn: () => fetchSourcePrompts(sourceId), enabled: showResults, staleTime: 1000 * 60 * 60 });
@@ -589,13 +596,13 @@ function PromptSourceGroup({
         return items.filter((item) => [item.title, item.prompt, ...item.tags].join(" ").toLowerCase().includes(q));
     }, [query.data, keyword]);
 
-    const insertPrompt = (item: Prompt) => onInsert({ kind: "text", content: item.prompt, title: item.title });
+    const insertPrompt = (item: Prompt) => onInsert({ kind: "text", content: item.prompt, title: mediaType === "video" ? t("canvas.sidePanel.insertVideoTitle", { title: item.title }) : t("canvas.sidePanel.insertImageTitle", { title: item.title }) });
 
     return (
         <div>
             <button type="button" onClick={onToggle} className="flex w-full items-center gap-1.5 rounded-md px-1.5 py-1.5 text-left text-xs font-semibold opacity-75 transition hover:opacity-100">
                 <ChevronRight className={cn("size-3.5 transition-transform", showResults && "rotate-90")} />
-                <BookOpen className="size-3.5" />
+                <TypeIcon className="size-3.5" />
                 <span className="min-w-0 flex-1 truncate">{sourceName}</span>
                 {showResults && query.isSuccess ? <span className="opacity-50">{filtered.length}</span> : null}
             </button>

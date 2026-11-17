@@ -23,21 +23,40 @@ export type ConversationState = {
     error?: string;
 };
 type McpInventoryItem = { name: string; authStatus?: string };
-export const AGENT_PROTOCOL_VERSION = 8;
+export const AGENT_PROTOCOL_VERSION = 9;
 
 const SITE_TOOLS = new Set<ToolName>([
     "site_navigate",
     "canvas_list_projects",
+    "canvas_create_project",
+    "canvas_rename_project",
+    "canvas_delete_projects",
+    "canvas_export_project",
     "stage_open",
     "workbench_image_get_config",
     "workbench_image_generate",
     "workbench_video_get_config",
     "workbench_video_generate",
     "prompts_search",
+    "prompts_sources_list",
+    "prompts_source_update",
+    "prompts_source_save",
+    "prompts_source_delete",
     "assets_list",
     "assets_add",
+    "assets_update",
+    "assets_delete",
+    "config_get_channels",
+    "config_set_default_models",
+    "webdav_sync",
+    "plugin_list",
+    "plugin_set_enabled",
+    "canvas_list_node_types",
     "generation_get_status",
 ]);
+
+/** 直接透传给画布页面执行的工具：撤销/重做等依赖页面级状态的动作，不经过 ops 归一。 */
+const PAGE_TOOLS = new Set<ToolName>(["canvas_undo", "canvas_redo", "canvas_stop_generation", "canvas_node_action"]);
 
 /** 需要路由到导演台页面客户端的工具；其余画布工具仍发给画布客户端。 */
 const DIRECTOR_TOOLS = new Set<ToolName>([
@@ -70,6 +89,14 @@ const DIRECTOR_TOOLS = new Set<ToolName>([
     "preview_render_frame",
     "preview_export_animatic",
     "preview_playback",
+    "timeline_get",
+    "object_route_get",
+    "object_route_update",
+    "object_route_keyframe_add",
+    "object_route_keyframe_update",
+    "object_route_keyframe_delete",
+    "viewport_set_view_mode",
+    "director_project_export",
 ]);
 
 /** stage_open 返回前等待导演台就绪的上限：需覆盖 iframe 加载、3D 场景初始化与 SSE 握手。 */
@@ -527,6 +554,7 @@ export class CanvasSession {
         }
         if (name === "canvas_create_attachment_nodes") return await this.createAttachmentNodes(input as { attachmentIds: string[]; x?: number; y?: number; gap?: number; direction?: "row" | "column" });
         if (!this.clients.size) throw new Error("当前没有已连接画布");
+        if (PAGE_TOOLS.has(name)) return await this.requestCanvasTool(name, input);
         const request = buildCanvasToolRequest(name, input, this.canvasState);
         return await this.requestCanvasTool(request.name, request.input);
     }

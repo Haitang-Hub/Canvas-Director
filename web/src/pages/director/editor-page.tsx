@@ -5,6 +5,7 @@ import { App, ConfigProvider } from "antd";
 import type { ThemeConfig } from "antd";
 import { ArrowLeft, Bot, Route, Settings2 } from "lucide-react";
 import { AgentPanel } from "@/components/agent/agent-panel";
+import { useAgentDockReserve } from "@/hooks/use-agent-dock-reserve";
 import { useAgentStore } from "@/stores/use-agent-store";
 import { AppConfigModal } from "@/components/layout/app-config-modal";
 import { getAntThemeConfig } from "@/lib/app-theme";
@@ -293,10 +294,10 @@ export default function DirectorEditorPage() {
   }
 
   const openConfigDialog = useConfigStore((state) => state.openConfigDialog);
-
+  const agentDockReserve = useAgentDockReserve("director");
 
   return (
-    <div className="h-dvh w-full overflow-hidden">
+    <div className="h-dvh w-full overflow-hidden" style={{ paddingLeft: agentDockReserve.left, paddingRight: agentDockReserve.right }}>
       <ConfigProvider theme={directorConfigTheme}>
         <App>
           <AppConfigModal rootClassName="dark" />
