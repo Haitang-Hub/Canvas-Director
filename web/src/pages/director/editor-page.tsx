@@ -1,7 +1,7 @@
 import "./styles/index.css";
 import { useEffect, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import { App, ConfigProvider } from "antd";
+import { App, ConfigProvider, Tooltip } from "antd";
 import type { ThemeConfig } from "antd";
 import { ArrowLeft, Bot, Route, Settings2 } from "lucide-react";
 import { AgentPanel } from "@/components/agent/agent-panel";
@@ -162,9 +162,11 @@ function DirectorDeskNameField({ desks, activeDeskId, onChange }: { desks: Direc
     );
   }
   return (
-    <span className="director-desk-name" title="双击修改导演台名称" onDoubleClick={() => setEditing(true)}>
-      {active?.name || "未命名导演台"}
-    </span>
+    <Tooltip title="双击修改导演台名称">
+      <span className="director-desk-name" onDoubleClick={() => setEditing(true)}>
+        {active?.name || "未命名导演台"}
+      </span>
+    </Tooltip>
   );
 }
 
@@ -309,9 +311,11 @@ export default function DirectorEditorPage() {
         <div className="app-shell">
           <header className="top-bar">
             <div className="top-bar-left">
-              <button className="top-bar-exit-button" type="button" title="退出导演台" aria-label="退出导演台" onClick={backToSource}>
-                <ArrowLeft aria-hidden="true" size={15} />
-              </button>
+              <Tooltip title="退出导演台">
+                <button className="top-bar-exit-button" type="button" aria-label="退出导演台" onClick={backToSource}>
+                  <ArrowLeft aria-hidden="true" size={15} />
+                </button>
+              </Tooltip>
               <DirectorDeskNameField
                 desks={directorDesks}
                 activeDeskId={activeDeskId}
@@ -327,16 +331,17 @@ export default function DirectorEditorPage() {
                 >
                   导演视角
                 </button>
-                <button
-                  className={`mode-toggle-button ui-segmented-item ${viewMode === "camera" ? "ui-segmented-item-active" : ""}`}
-                  aria-label="第一视角"
-                  aria-pressed={viewMode === "camera"}
-                  title="查看摄影机最终画面"
-                  type="button"
-                  onClick={() => setViewMode("camera")}
-                >
-                  第一视角
-                </button>
+                <Tooltip title="查看摄影机最终画面">
+                  <button
+                    className={`mode-toggle-button ui-segmented-item ${viewMode === "camera" ? "ui-segmented-item-active" : ""}`}
+                    aria-label="第一视角"
+                    aria-pressed={viewMode === "camera"}
+                    type="button"
+                    onClick={() => setViewMode("camera")}
+                  >
+                    第一视角
+                  </button>
+                </Tooltip>
               </div>
               <button
                 className={`top-bar-motion-button${motionStudioOpen ? " is-active" : ""}`}
@@ -358,9 +363,11 @@ export default function DirectorEditorPage() {
             </div>
             <div className="top-bar-right">
               <DirectorAgentToggle />
-              <button className="top-bar-exit-button" type="button" title="模型配置" aria-label="模型配置" onClick={() => openConfigDialog(false, "channels")}>
-                <Settings2 aria-hidden="true" size={15} />
-              </button>
+              <Tooltip title="模型配置">
+                <button className="top-bar-exit-button" type="button" aria-label="模型配置" onClick={() => openConfigDialog(false, "channels")}>
+                  <Settings2 aria-hidden="true" size={15} />
+                </button>
+              </Tooltip>
             </div>
           </header>
           <DirectorDeskShell>

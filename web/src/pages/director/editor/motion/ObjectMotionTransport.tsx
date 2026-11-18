@@ -7,6 +7,8 @@ import {
   RotateCcw,
   Trash2,
 } from "lucide-react";
+import { Tooltip } from "antd";
+
 import { DEFAULT_CAMERA_MOTION_PATH, getCameraMotionPath, getCameraMotionTimingPlan } from "../schema/cameraMotion";
 import { getObjectMotionTimingPlan, normalizeObjectMotionPath } from "../schema/objectMotion";
 import type { RouteTimingPlan } from "../schema/routeTiming";
@@ -167,9 +169,11 @@ export function ObjectMotionTransport() {
         </span>
         <span className="object-motion-transport__subject-copy">
           <small>{selectedObject ? isCharacterRoute ? "人物路线播放" : `${objectKindLabel}动作` : "人物 / 道具动作"}</small>
-          <strong title={selectedObject?.name}>
-            {selectedObject?.name ?? "请先选中人物或道具"}
-          </strong>
+          <Tooltip title={selectedObject?.name}>
+            <strong>
+              {selectedObject?.name ?? "请先选中人物或道具"}
+            </strong>
+          </Tooltip>
         </span>
       </div>
 
@@ -240,20 +244,20 @@ export function ObjectMotionTransport() {
               </span>
               <div className="object-motion-transport__track-line">
                 {cameraSpans.moves.map((span) => (
-                  <span
-                    key={`camera-move-${span.index}`}
-                    className={`object-motion-transport__span is-move${progress >= span.start && progress < span.end ? " is-active" : ""}`}
-                    style={{ left: `${span.start * 100}%`, width: `${Math.max(0, span.end - span.start) * 100}%` }}
-                    title={`镜头移动 ${formatSeconds(span.start * duration)} - ${formatSeconds(span.end * duration)}`}
-                  />
+                  <Tooltip key={`camera-move-${span.index}`} title={`镜头移动 ${formatSeconds(span.start * duration)} - ${formatSeconds(span.end * duration)}`}>
+                    <span
+                      className={`object-motion-transport__span is-move${progress >= span.start && progress < span.end ? " is-active" : ""}`}
+                      style={{ left: `${span.start * 100}%`, width: `${Math.max(0, span.end - span.start) * 100}%` }}
+                    />
+                  </Tooltip>
                 ))}
                 {cameraSpans.holds.map((span) => (
-                  <span
-                    key={`camera-hold-${span.index}`}
-                    className={`object-motion-transport__span is-hold${progress >= span.start && progress < span.end ? " is-active" : ""}`}
-                    style={{ left: `${span.start * 100}%`, width: `${Math.max(0, span.end - span.start) * 100}%` }}
-                    title={`镜头停留 ${formatSeconds((span.end - span.start) * duration)}`}
-                  />
+                  <Tooltip key={`camera-hold-${span.index}`} title={`镜头停留 ${formatSeconds((span.end - span.start) * duration)}`}>
+                    <span
+                      className={`object-motion-transport__span is-hold${progress >= span.start && progress < span.end ? " is-active" : ""}`}
+                      style={{ left: `${span.start * 100}%`, width: `${Math.max(0, span.end - span.start) * 100}%` }}
+                    />
+                  </Tooltip>
                 ))}
                 <i className="object-motion-transport__playhead" style={{ left: `${progress * 100}%` }} />
                 <input
@@ -272,26 +276,28 @@ export function ObjectMotionTransport() {
           ) : null}
           {objectSpans?.moves.length ? (
             <div className="object-motion-transport__track object-motion-transport__track--object">
-              <span className="object-motion-transport__track-label" title={selectedObject?.name}>
-                <strong>{selectedObject?.name ?? (selectedObject?.kind === "character" ? "人物" : "道具")}移动</strong>
-                <small>{getRoutePlaybackStatus(objectSpans, progress)}</small>
-              </span>
+              <Tooltip title={selectedObject?.name}>
+                <span className="object-motion-transport__track-label">
+                  <strong>{selectedObject?.name ?? (selectedObject?.kind === "character" ? "人物" : "道具")}移动</strong>
+                  <small>{getRoutePlaybackStatus(objectSpans, progress)}</small>
+                </span>
+              </Tooltip>
               <div className="object-motion-transport__track-line">
                 {objectSpans.moves.map((span) => (
-                  <span
-                    key={`object-move-${span.index}`}
-                    className={`object-motion-transport__span is-move${progress >= span.start && progress < span.end ? " is-active" : ""}`}
-                    style={{ left: `${span.start * 100}%`, width: `${Math.max(0, span.end - span.start) * 100}%` }}
-                    title={`${selectedObject?.name ?? "对象"}移动 ${formatSeconds(span.start * duration)} - ${formatSeconds(span.end * duration)}`}
-                  />
+                  <Tooltip key={`object-move-${span.index}`} title={`${selectedObject?.name ?? "对象"}移动 ${formatSeconds(span.start * duration)} - ${formatSeconds(span.end * duration)}`}>
+                    <span
+                      className={`object-motion-transport__span is-move${progress >= span.start && progress < span.end ? " is-active" : ""}`}
+                      style={{ left: `${span.start * 100}%`, width: `${Math.max(0, span.end - span.start) * 100}%` }}
+                    />
+                  </Tooltip>
                 ))}
                 {objectSpans.holds.map((span) => (
-                  <span
-                    key={`object-hold-${span.index}`}
-                    className={`object-motion-transport__span is-hold${progress >= span.start && progress < span.end ? " is-active" : ""}`}
-                    style={{ left: `${span.start * 100}%`, width: `${Math.max(0, span.end - span.start) * 100}%` }}
-                    title={`${selectedObject?.name ?? "对象"}停留 ${formatSeconds((span.end - span.start) * duration)}`}
-                  />
+                  <Tooltip key={`object-hold-${span.index}`} title={`${selectedObject?.name ?? "对象"}停留 ${formatSeconds((span.end - span.start) * duration)}`}>
+                    <span
+                      className={`object-motion-transport__span is-hold${progress >= span.start && progress < span.end ? " is-active" : ""}`}
+                      style={{ left: `${span.start * 100}%`, width: `${Math.max(0, span.end - span.start) * 100}%` }}
+                    />
+                  </Tooltip>
                 ))}
                 <i className="object-motion-transport__playhead" style={{ left: `${progress * 100}%` }} />
                 <input
@@ -313,22 +319,23 @@ export function ObjectMotionTransport() {
 
       <div className="object-motion-transport__editor">
         {!isCharacterRoute ? <>
-          <button
-            className="object-motion-transport__record"
-            type="button"
-            disabled={!selectedObject}
-            aria-label={selectedObject ? `${recordLabel}：${selectedObject.name}` : "记录人物或道具动作点"}
-            title={recordLabel}
-            onClick={() => {
-              if (!selectedObject) return;
-              setPlaying(false);
-              const recorded = addObjectMotionKeyframe(selectedObject.id, progress);
-              if (recorded) selectObjectMotionKeyframe(recorded);
-            }}
-          >
-            <MapPinPlus aria-hidden="true" size={15} />
-            <span>{recordLabel}</span>
-          </button>
+          <Tooltip title={recordLabel}>
+            <button
+              className="object-motion-transport__record"
+              type="button"
+              disabled={!selectedObject}
+              aria-label={selectedObject ? `${recordLabel}：${selectedObject.name}` : "记录人物或道具动作点"}
+              onClick={() => {
+                if (!selectedObject) return;
+                setPlaying(false);
+                const recorded = addObjectMotionKeyframe(selectedObject.id, progress);
+                if (recorded) selectObjectMotionKeyframe(recorded);
+              }}
+            >
+              <MapPinPlus aria-hidden="true" size={15} />
+              <span>{recordLabel}</span>
+            </button>
+          </Tooltip>
           <div
             className="object-motion-transport__keyframes"
             role="group"
@@ -337,20 +344,20 @@ export function ObjectMotionTransport() {
             {keyframes.length > 0 ? keyframes.map((keyframe, index) => {
             const isCurrent = keyframe.id === currentKeyframe?.id;
             return (
-              <button
-                key={keyframe.id}
-                className={isCurrent ? "is-current" : undefined}
-                type="button"
-                aria-label={`跳转到${selectedObject?.name ?? "对象"}${pointLabel} ${index + 1}`}
-                aria-pressed={isCurrent}
-                title={`${formatSeconds((objectSpans?.arrivals[index] ?? keyframe.time) * duration)} · ${pointLabel} ${index + 1}`}
-                onClick={() => {
-                  selectObjectMotionKeyframe(keyframe.id);
-                  seek(objectSpans?.arrivals[index] ?? keyframe.time);
-                }}
-              >
-                {index + 1}
-              </button>
+              <Tooltip key={keyframe.id} title={`${formatSeconds((objectSpans?.arrivals[index] ?? keyframe.time) * duration)} · ${pointLabel} ${index + 1}`}>
+                <button
+                  className={isCurrent ? "is-current" : undefined}
+                  type="button"
+                  aria-label={`跳转到${selectedObject?.name ?? "对象"}${pointLabel} ${index + 1}`}
+                  aria-pressed={isCurrent}
+                  onClick={() => {
+                    selectObjectMotionKeyframe(keyframe.id);
+                    seek(objectSpans?.arrivals[index] ?? keyframe.time);
+                  }}
+                >
+                  {index + 1}
+                </button>
+              </Tooltip>
             );
             }) : (
               <small>{selectedObject ? "还没有动作点" : "选择对象后记录动作"}</small>
@@ -358,22 +365,23 @@ export function ObjectMotionTransport() {
           </div>
         </> : <span className="object-motion-transport__route-hint">路线点、每段动作和朝向请在右侧“路线”页编辑</span>}
 
-        <button
-          className="object-motion-transport__delete"
-          type="button"
-          disabled={isCharacterRoute || !selectedObject || !currentKeyframe}
-          aria-label={selectedObject ? `删除${selectedObject.name}当前${pointLabel}` : "删除当前动作点"}
-          title="删除当前点"
-          onClick={() => {
-            if (!selectedObject || !currentKeyframe) return;
-            setPlaying(false);
-            deleteObjectMotionKeyframe(selectedObject.id, currentKeyframe.id);
-            selectObjectMotionKeyframe(null);
-          }}
-        >
-          <Trash2 aria-hidden="true" size={14} />
-          <span>删除当前点</span>
-        </button>
+        <Tooltip title="删除当前点">
+          <button
+            className="object-motion-transport__delete"
+            type="button"
+            disabled={isCharacterRoute || !selectedObject || !currentKeyframe}
+            aria-label={selectedObject ? `删除${selectedObject.name}当前${pointLabel}` : "删除当前动作点"}
+            onClick={() => {
+              if (!selectedObject || !currentKeyframe) return;
+              setPlaying(false);
+              deleteObjectMotionKeyframe(selectedObject.id, currentKeyframe.id);
+              selectObjectMotionKeyframe(null);
+            }}
+          >
+            <Trash2 aria-hidden="true" size={14} />
+            <span>删除当前点</span>
+          </button>
+        </Tooltip>
       </div>
     </section>
   );

@@ -49,15 +49,16 @@ export function AppTopNav() {
                                 <span className="text-base font-medium">{t("meta.title")}</span>
                             </Link>
 
-                            <button
-                                type="button"
-                                className="ml-3 inline-flex size-8 shrink-0 items-center justify-center text-stone-600 transition hover:text-stone-950 md:hidden dark:text-stone-300 dark:hover:text-white"
-                                onClick={() => setMobileNavOpen(true)}
-                                aria-label={t("topNav.openMenu")}
-                                title={t("topNav.menu")}
-                            >
-                                <Menu className="size-5" />
-                            </button>
+                            <Tooltip title={t("topNav.menu")}>
+                                <button
+                                    type="button"
+                                    className="ml-3 inline-flex size-8 shrink-0 items-center justify-center text-stone-600 transition hover:text-stone-950 md:hidden dark:text-stone-300 dark:hover:text-white"
+                                    onClick={() => setMobileNavOpen(true)}
+                                    aria-label={t("topNav.openMenu")}
+                                >
+                                    <Menu className="size-5" />
+                                </button>
+                            </Tooltip>
 
                             <nav className="hide-scrollbar ml-8 hidden h-14 min-w-0 items-center gap-7 overflow-x-auto md:flex">
                                 {navigationTools.map((tool) => {

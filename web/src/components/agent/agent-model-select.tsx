@@ -1,3 +1,4 @@
+import { Tooltip } from "antd";
 import { ChevronUp } from "lucide-react";
 
 import { Select, SelectContent, SelectItem, SelectTrigger } from "@/components/ui/select";
@@ -27,9 +28,11 @@ export function AgentTextModelSelect({ theme }: { theme: (typeof canvasThemes)[k
     }
     if (!options.length) {
         return (
-            <span className="inline-flex h-9 items-center gap-1.5 rounded-full px-2.5 text-xs font-medium" style={{ color: theme.node.muted }} title="先在「模型配置」里添加 text 渠道">
-                <span className="truncate">未配置 text 渠道</span>
-            </span>
+            <Tooltip title="先在「模型配置」里添加 text 渠道">
+                <span className="inline-flex h-9 cursor-default items-center gap-1.5 rounded-full px-2.5 text-xs font-medium" style={{ color: theme.node.muted }}>
+                    <span className="truncate">未配置 text 渠道</span>
+                </span>
+            </Tooltip>
         );
     }
     return (

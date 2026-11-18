@@ -1,5 +1,5 @@
 import { type ReactNode, useState } from "react";
-import { ConfigProvider, Switch } from "antd";
+import { ConfigProvider, Switch, Tooltip } from "antd";
 import { useTranslation } from "react-i18next";
 
 import i18n from "@/i18n";
@@ -82,9 +82,11 @@ export function ImageSettingsPanel({ config, onConfigChange, theme, showTitle = 
                             <span className="text-xs font-medium" style={{ color: theme.node.muted }}>
                                 {t("settingsPanels.image.align16")}
                             </span>
-                            <span title={t("settingsPanels.image.align16Hint")} onMouseDown={(event) => event.stopPropagation()}>
-                                <Switch size="small" checked={snapDimensionToStep} onChange={setSnapDimensionToStep} />
-                            </span>
+                            <Tooltip title={t("settingsPanels.image.align16Hint")}>
+                                <span onMouseDown={(event) => event.stopPropagation()}>
+                                    <Switch size="small" checked={snapDimensionToStep} onChange={setSnapDimensionToStep} />
+                                </span>
+                            </Tooltip>
                         </div>
                     </div>
                     <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-2.5">

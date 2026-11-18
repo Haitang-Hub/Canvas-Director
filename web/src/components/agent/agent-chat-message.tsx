@@ -1,5 +1,5 @@
 import { useEffect, useId, useState, type ReactNode } from "react";
-import { App, Button, Image, Modal, Popover } from "antd";
+import { App, Button, Image, Modal, Popover, Tooltip } from "antd";
 import { Brain, CheckCircle2, ChevronDown, ChevronRight, Circle, CircleAlert, Copy, ExternalLink, FilePenLine, FileText, FolderOpen, ListChecks, LoaderCircle, Search, ShieldAlert, TerminalSquare, Wrench, XCircle } from "lucide-react";
 import { Streamdown, type LinkSafetyModalProps } from "streamdown";
 import { useTranslation } from "react-i18next";
@@ -152,7 +152,7 @@ function AgentUserMessageContent({ text, references, skill, theme }: { text: str
 }
 
 function AgentSkillMention({ skill, theme }: { skill: AgentSkillReference; theme: (typeof canvasThemes)[keyof typeof canvasThemes] }) {
-    return <span className={agentInlineTokenClass} style={{ background: theme.toolbar.panel, borderColor: theme.node.stroke, color: theme.node.text }} title={skill.path}>/{skill.displayName || skill.name}</span>;
+    return <Tooltip title={skill.path}><span className={agentInlineTokenClass} style={{ background: theme.toolbar.panel, borderColor: theme.node.stroke, color: theme.node.text }}>/{skill.displayName || skill.name}</span></Tooltip>;
 }
 
 function AgentCanvasMention({ reference, theme }: { reference: AgentCanvasReference; theme: (typeof canvasThemes)[keyof typeof canvasThemes] }) {
@@ -344,10 +344,14 @@ function AgentCommandEntry({ item, index, theme }: { item: AgentCommandItem; ind
     const content = (
         <>
             <span className="w-4 shrink-0 text-center text-[10px] tabular-nums opacity-50" style={{ color: theme.node.muted }}>{index + 1}</span>
-            <code className="min-w-0 flex-1 truncate text-[11px] leading-5" style={{ color: theme.node.text }} title={item.text}>{item.text || t("agent.message.command")}</code>
-            <span className="shrink-0" style={{ color }} title={status} aria-label={status}>
-                {state.running ? <LoaderCircle className="size-3.5 animate-spin" /> : state.failed ? <XCircle className="size-3.5" /> : <CheckCircle2 className="size-3.5" />}
-            </span>
+            <Tooltip title={item.text}>
+                <code className="min-w-0 flex-1 truncate text-[11px] leading-5" style={{ color: theme.node.text }}>{item.text || t("agent.message.command")}</code>
+            </Tooltip>
+            <Tooltip title={status}>
+                <span className="shrink-0" style={{ color }} aria-label={status}>
+                    {state.running ? <LoaderCircle className="size-3.5 animate-spin" /> : state.failed ? <XCircle className="size-3.5" /> : <CheckCircle2 className="size-3.5" />}
+                </span>
+            </Tooltip>
             {view ? <ChevronRight className={`size-3.5 shrink-0 transition-transform ${open ? "rotate-90" : ""}`} style={{ color: theme.node.muted }} /> : null}
         </>
     );
@@ -529,15 +533,15 @@ function AgentMessageAttachments({ attachments, alignRight }: { attachments: Age
         <>
             <div className={`mt-1.5 flex flex-wrap gap-1.5 ${alignRight ? "justify-end" : "justify-start"}`}>
                 {attachments.map((item) => (
-                    <img
-                        key={item.id}
-                        src={item.url}
-                        alt={item.name}
-                        title={t("agent.message.viewLarge")}
-                        className="size-10 cursor-zoom-in rounded-lg object-cover"
-                        draggable={false}
-                        onClick={() => setPreviewUrl(item.url)}
-                    />
+                    <Tooltip key={item.id} title={t("agent.message.viewLarge")}>
+                        <img
+                            src={item.url}
+                            alt={item.name}
+                            className="size-10 cursor-zoom-in rounded-lg object-cover"
+                            draggable={false}
+                            onClick={() => setPreviewUrl(item.url)}
+                        />
+                    </Tooltip>
                 ))}
             </div>
             {previewUrl ? (

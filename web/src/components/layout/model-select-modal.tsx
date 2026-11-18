@@ -1,4 +1,4 @@
-import { App, Button, Checkbox, Input, Modal, Tabs } from "antd";
+import { App, Button, Checkbox, Input, Modal, Tabs, Tooltip } from "antd";
 import { RefreshCw, Search } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -141,9 +141,11 @@ export function ModelSelectModal({ open, channel, selectedNames, onConfirm, onCl
                 <div className="grid grid-cols-1 gap-x-8 gap-y-3 md:grid-cols-2">
                     {visibleList.map((name) => (
                         <Checkbox key={name} checked={selected.has(name)} onChange={(event) => toggle(name, event.target.checked)}>
-                            <span className="truncate" title={name}>
-                                {name}
-                            </span>
+                            <Tooltip title={name}>
+                                <span className="truncate">
+                                    {name}
+                                </span>
+                            </Tooltip>
                         </Checkbox>
                     ))}
                 </div>

@@ -125,14 +125,15 @@ export function CanvasTopBar({
                                 style={{ color: theme.node.text }}
                             />
                         ) : (
-                            <button
-                                type="button"
-                                className="max-w-[120px] truncate border-b border-dashed border-transparent text-left text-lg font-semibold tracking-normal transition hover:border-current sm:max-w-[280px]"
-                                onDoubleClick={onStartTitleEditing}
-                                title={t("canvas.renameHint")}
-                            >
-                                {title}
-                            </button>
+                            <Tooltip title={t("canvas.renameHint")}>
+                                <button
+                                    type="button"
+                                    className="max-w-[120px] truncate border-b border-dashed border-transparent text-left text-lg font-semibold tracking-normal transition hover:border-current sm:max-w-[280px]"
+                                    onDoubleClick={onStartTitleEditing}
+                                >
+                                    {title}
+                                </button>
+                            </Tooltip>
                         )}
                     </div>
                     <CompactAgentStatus status={compactAgentStatus} onClick={onToggleAgent} />
@@ -191,10 +192,12 @@ function CompactAgentStatus({ status, onClick }: { status: { connected: boolean;
     const label = status.connected ? t("canvas.agentConnected") : status.enabled ? t("canvas.agentConnecting", { activity: status.activity || t("canvas.connecting") }) : t("canvas.agentDisconnected");
     const dotColor = status.connected ? "#22c55e" : status.enabled ? "#f59e0b" : theme.node.muted;
     return (
-        <button type="button" className="flex h-8 items-center gap-1.5 text-xs transition hover:opacity-75" style={{ color: status.connected ? "#16a34a" : status.enabled ? "#d97706" : theme.node.muted }} onClick={onClick} title={t("canvas.openAgent")}>
-            <span className="size-2 shrink-0 rounded-full" style={{ background: dotColor }} />
-            <span className="hidden max-w-[140px] truncate sm:inline">{label}</span>
-        </button>
+        <Tooltip title={t("canvas.openAgent")}>
+            <button type="button" className="flex h-8 items-center gap-1.5 text-xs transition hover:opacity-75" style={{ color: status.connected ? "#16a34a" : status.enabled ? "#d97706" : theme.node.muted }} onClick={onClick}>
+                <span className="size-2 shrink-0 rounded-full" style={{ background: dotColor }} />
+                <span className="hidden max-w-[140px] truncate sm:inline">{label}</span>
+            </button>
+        </Tooltip>
     );
 }
 

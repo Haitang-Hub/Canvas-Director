@@ -1,3 +1,4 @@
+import { Tooltip } from "antd";
 import { ImagePlus, RotateCcw, Trash2 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import {
@@ -179,18 +180,19 @@ export function ScenePanel() {
                 src={resolvedPanoramaUrl}
               />
               <span className="panorama-thumbnail-name">{panoramaAsset.fileName}</span>
-              <button
-                aria-label="删除全景图"
-                className="panorama-thumbnail-delete"
-                title="删除全景图"
-                type="button"
-                onClick={() => {
-                  removePanoramaAsset();
-                  setPanoramaError(null);
-                }}
-              >
-                <Trash2 aria-hidden="true" />
-              </button>
+              <Tooltip title="删除全景图">
+                <button
+                  aria-label="删除全景图"
+                  className="panorama-thumbnail-delete"
+                  type="button"
+                  onClick={() => {
+                    removePanoramaAsset();
+                    setPanoramaError(null);
+                  }}
+                >
+                  <Trash2 aria-hidden="true" />
+                </button>
+              </Tooltip>
             </div>
           ) : (
             <div className="panorama-empty-card">
@@ -209,16 +211,17 @@ export function ScenePanel() {
               {panoramaImporting ? "正在处理..." : panoramaAsset ? "更换全景图" : "导入全景图"}
             </button>
             {panoramaAsset ? (
-              <button
-                aria-label="恢复全景默认方向"
-                className="panorama-reset-button"
-                disabled={scene.panoramaYaw === 0}
-                title="恢复默认方向"
-                type="button"
-                onClick={() => updateScene({ panoramaYaw: 0 })}
-              >
-                <RotateCcw aria-hidden="true" size={15} />
-              </button>
+              <Tooltip title="恢复默认方向">
+                <button
+                  aria-label="恢复全景默认方向"
+                  className="panorama-reset-button"
+                  disabled={scene.panoramaYaw === 0}
+                  type="button"
+                  onClick={() => updateScene({ panoramaYaw: 0 })}
+                >
+                  <RotateCcw aria-hidden="true" size={15} />
+                </button>
+              </Tooltip>
             ) : null}
           </div>
           <input

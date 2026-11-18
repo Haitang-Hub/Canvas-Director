@@ -1,5 +1,5 @@
 import { GithubOutlined } from "@ant-design/icons";
-import { App, Button, Select, Switch, Tag } from "antd";
+import { App, Button, Select, Switch, Tag, Tooltip } from "antd";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Eye, Pencil, Plus, RefreshCw, Trash2 } from "lucide-react";
 import { useMemo, useState } from "react";
@@ -127,7 +127,7 @@ export function ConfigPromptSources() {
                                         {source.homepage || source.url}
                                     </a>
                                     <span className="tabular-nums">{t("config.promptSources.itemCount", { count: status?.count ?? 0 })}</span>
-                                    {status?.lastError ? <Tag color="error" className="m-0 text-[10px]" title={status.lastError}>{t("config.promptSources.failed")}</Tag> : status?.lastSuccessAt ? <Tag color="success" className="m-0 text-[10px]">{t("config.promptSources.healthy")}</Tag> : <Tag className="m-0 text-[10px]">{t("config.promptSources.unsynced")}</Tag>}
+                                    {status?.lastError ? <Tooltip title={status.lastError}><Tag color="error" className="m-0 text-[10px]">{t("config.promptSources.failed")}</Tag></Tooltip> : status?.lastSuccessAt ? <Tag color="success" className="m-0 text-[10px]">{t("config.promptSources.healthy")}</Tag> : <Tag className="m-0 text-[10px]">{t("config.promptSources.unsynced")}</Tag>}
                                     <span>{status?.lastSuccessAt ? t("config.promptSources.lastSuccess", { time: formatTime(status.lastSuccessAt, i18n.resolvedLanguage) }) : t("config.promptSources.neverFetched")}</span>
                                 </div>
                             </div>

@@ -1,6 +1,6 @@
 import type { CSSProperties, MouseEvent as ReactMouseEvent, ReactNode, RefObject } from "react";
 import { useEffect, useRef, useState } from "react";
-import { Button, Segmented, Switch } from "antd";
+import { Button, Segmented, Switch, Tooltip } from "antd";
 import { CircleDot, Eraser, Grid2x2, Group, Hand, Image as ImageIcon, Info, LocateFixed, Moon, MousePointer2, Music2, Palette, Puzzle, Redo2, Settings2, Square, Sun, Trash2, Type, Undo2, Upload, Video, Clapperboard } from "lucide-react";
 
 import { canvasThemes, type CanvasBackgroundMode, type CanvasColorTheme, type CanvasTheme } from "@/lib/canvas-theme";
@@ -343,17 +343,18 @@ function CanvasThemeButton({ colorTheme, targetTheme, onThemeChange, children }:
     const label = targetTheme === "dark" ? t("topNav.darkTheme") : t("topNav.lightTheme");
 
     return (
-        <AnimatedThemeToggler
-            theme={colorTheme}
-            targetTheme={targetTheme}
-            onThemeChange={onThemeChange}
-            className="inline-flex h-8 min-w-0 items-center justify-center gap-1.5 rounded-md px-2 text-sm transition"
-            style={active ? activeStyle : { color: theme.toolbar.item }}
-            aria-label={label}
-            title={label}
-        >
-            {children}
-        </AnimatedThemeToggler>
+        <Tooltip title={label}>
+            <AnimatedThemeToggler
+                theme={colorTheme}
+                targetTheme={targetTheme}
+                onThemeChange={onThemeChange}
+                className="inline-flex h-8 min-w-0 items-center justify-center gap-1.5 rounded-md px-2 text-sm transition"
+                style={active ? activeStyle : { color: theme.toolbar.item }}
+                aria-label={label}
+            >
+                {children}
+            </AnimatedThemeToggler>
+        </Tooltip>
     );
 }
 

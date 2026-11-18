@@ -1,3 +1,4 @@
+import { Tooltip } from "antd";
 import {
   ArrowDown,
   ArrowUp,
@@ -527,17 +528,17 @@ export function MotionStudio({
           </div>
           <div className="motion-template-grid">
             {visiblePathTemplates.map((template) => (
-              <button
-                type="button"
-                key={template.id}
-                className={activeTemplateId === template.id ? "is-active" : undefined}
-                aria-label={`套用${template.label}镜头预设`}
-                aria-pressed={activeTemplateId === template.id}
-                title={template.description}
-                onClick={() => applyPathTemplate(template.id)}
-              >
-                {template.label}
-              </button>
+              <Tooltip key={template.id} title={template.description}>
+                <button
+                  type="button"
+                  className={activeTemplateId === template.id ? "is-active" : undefined}
+                  aria-label={`套用${template.label}镜头预设`}
+                  aria-pressed={activeTemplateId === template.id}
+                  onClick={() => applyPathTemplate(template.id)}
+                >
+                  {template.label}
+                </button>
+              </Tooltip>
             ))}
           </div>
           {templateGroup === "community" ? (
@@ -642,31 +643,33 @@ export function MotionStudio({
                     {index > 0 ? (
                       <span className="motion-waypoint-link-wrap">
                         <span className={`motion-waypoint-link${timelinePreviewActive && index <= activeIndex ? " is-lit" : ""}`} />
-                        <button
-                          type="button"
-                          className="motion-waypoint-insert"
-                          aria-label={`在轨迹点 ${index} 和 ${index + 1} 之间插入轨迹点`}
-                          title={`在 ${index} 和 ${index + 1} 中间插入`}
-                          onClick={() => {
-                            setBatchSelectionEnabled(false);
-                            insertCameraMotionKeyframeAfter(activeCamera.id, motionPath.keyframes[index - 1].id);
-                          }}
-                        >
-                          <Plus aria-hidden="true" size={11} />
-                        </button>
+                        <Tooltip title={`在 ${index} 和 ${index + 1} 中间插入`}>
+                          <button
+                            type="button"
+                            className="motion-waypoint-insert"
+                            aria-label={`在轨迹点 ${index} 和 ${index + 1} 之间插入轨迹点`}
+                            onClick={() => {
+                              setBatchSelectionEnabled(false);
+                              insertCameraMotionKeyframeAfter(activeCamera.id, motionPath.keyframes[index - 1].id);
+                            }}
+                          >
+                            <Plus aria-hidden="true" size={11} />
+                          </button>
+                        </Tooltip>
                       </span>
                     ) : null}
-                    <button
-                      type="button"
-                      className={`motion-waypoint${(batchSelectionEnabled ? selectedCameraKeyframeIds.includes(keyframe.id) : selected) ? " is-selected" : ""}${reached ? " is-reached" : ""}${approaching ? " is-approaching" : ""}${trackedObjectName ? " has-tracking" : ""}`}
-                      aria-label={batchSelectionEnabled ? `批量选择轨迹点 ${index + 1}` : `选择轨迹点 ${index + 1}`}
-                      aria-pressed={batchSelectionEnabled ? selectedCameraKeyframeIds.includes(keyframe.id) : selected}
-                      title={trackedObjectName ? `轨迹点 ${index + 1} · 跟踪 ${trackedObjectName}` : `轨迹点 ${index + 1} · 固定朝向`}
-                      onClick={() => selectWaypoint(keyframe.id, activeTimingPlan?.arrivals[index] ?? keyframe.time)}
-                    >
-                      <span>{index + 1}</span>
-                      <small>{((activeTimingPlan?.arrivals[index] ?? keyframe.time) * motionPath.duration).toFixed(1)}s{trackedObjectName ? " · 跟" : ""}</small>
-                    </button>
+                    <Tooltip title={trackedObjectName ? `轨迹点 ${index + 1} · 跟踪 ${trackedObjectName}` : `轨迹点 ${index + 1} · 固定朝向`}>
+                      <button
+                        type="button"
+                        className={`motion-waypoint${(batchSelectionEnabled ? selectedCameraKeyframeIds.includes(keyframe.id) : selected) ? " is-selected" : ""}${reached ? " is-reached" : ""}${approaching ? " is-approaching" : ""}${trackedObjectName ? " has-tracking" : ""}`}
+                        aria-label={batchSelectionEnabled ? `批量选择轨迹点 ${index + 1}` : `选择轨迹点 ${index + 1}`}
+                        aria-pressed={batchSelectionEnabled ? selectedCameraKeyframeIds.includes(keyframe.id) : selected}
+                        onClick={() => selectWaypoint(keyframe.id, activeTimingPlan?.arrivals[index] ?? keyframe.time)}
+                      >
+                        <span>{index + 1}</span>
+                        <small>{((activeTimingPlan?.arrivals[index] ?? keyframe.time) * motionPath.duration).toFixed(1)}s{trackedObjectName ? " · 跟" : ""}</small>
+                      </button>
+                    </Tooltip>
                   </div>
                 );
               })}

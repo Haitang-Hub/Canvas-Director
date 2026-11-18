@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ReactNode } from "react";
+import { Tooltip } from "antd";
 import { ChevronRight, Clapperboard, Copy, Download, Film, Group, Image as ImageIcon, Music2, Puzzle, RefreshCw, Star, Trash2, Video } from "lucide-react";
 
 import { canvasThemes } from "@/lib/canvas-theme";
@@ -343,18 +344,19 @@ export const CanvasNode = React.memo(function CanvasNode({
                             }}
                         />
                     ) : (
-                        <button
-                            type="button"
-                            className="block max-w-full truncate border-b border-dashed border-transparent px-0 py-0.5 text-left text-xs font-medium opacity-75 transition hover:border-current hover:opacity-100"
-                            style={{ color: theme.node.text }}
-                            title={t("canvas.node.renameHint")}
-                            onDoubleClick={(event) => {
-                                event.stopPropagation();
-                                setIsEditingTitle(true);
-                            }}
-                        >
-                            {data.title || t("canvas.node.untitled")}
-                        </button>
+                        <Tooltip title={t("canvas.node.renameHint")}>
+                            <button
+                                type="button"
+                                className="block max-w-full truncate border-b border-dashed border-transparent px-0 py-0.5 text-left text-xs font-medium opacity-75 transition hover:border-current hover:opacity-100"
+                                style={{ color: theme.node.text }}
+                                onDoubleClick={(event) => {
+                                    event.stopPropagation();
+                                    setIsEditingTitle(true);
+                                }}
+                            >
+                                {data.title || t("canvas.node.untitled")}
+                            </button>
+                        </Tooltip>
                     )}
                 </div>
             )}
@@ -822,10 +824,12 @@ function ImageContent({
             </div>
             {primaryImage?.status === "error" ? <BatchImageFailureActions placement="left" onRetry={() => onRetryBatchImage?.(primaryImage.id)} onDelete={() => onDeleteBatchImage?.(primaryImage.id)} /> : null}
             {primaryImage?.content ? (
-                <button type="button" className="absolute left-2.5 top-2.5 z-30 flex h-8 items-center gap-1 rounded-lg border px-2 text-[10px] font-medium shadow-[0_6px_18px_rgba(15,23,42,.16)] backdrop-blur-md transition hover:scale-[1.02]" style={{ background: theme.toolbar.panel, borderColor: theme.toolbar.border, color: theme.toolbar.activeText }} title={t("common.download")} onClick={(event) => (event.stopPropagation(), onDownloadBatchImage?.(primaryImage.id))}>
-                    <Download className="size-3" />
-                    {t("common.download")}
-                </button>
+                <Tooltip title={t("common.download")}>
+                    <button type="button" className="absolute left-2.5 top-2.5 z-30 flex h-8 items-center gap-1 rounded-lg border px-2 text-[10px] font-medium shadow-[0_6px_18px_rgba(15,23,42,.16)] backdrop-blur-md transition hover:scale-[1.02]" style={{ background: theme.toolbar.panel, borderColor: theme.toolbar.border, color: theme.toolbar.activeText }} onClick={(event) => (event.stopPropagation(), onDownloadBatchImage?.(primaryImage.id))}>
+                        <Download className="size-3" />
+                        {t("common.download")}
+                    </button>
+                </Tooltip>
             ) : null}
             {isBatchRoot ? (
                 <button
@@ -889,18 +893,24 @@ function ExpandedImageCard({ node, image, index, onView, onSetPrimary, onDuplica
             {image.content ? <img src={image.content} alt={node.title} draggable={false} className="pointer-events-none h-full w-full select-none object-contain" /> : <ImageSlotStatus image={image} />}
             {image.content ? (
                 <div className="absolute inset-x-2 top-2 flex items-center gap-1">
-                    <button type="button" className="flex h-8 min-w-0 flex-1 items-center justify-center gap-1 rounded-lg border px-1.5 text-[10px] font-medium shadow-[0_6px_18px_rgba(15,23,42,.16)] backdrop-blur-md transition hover:scale-[1.02]" style={{ background: theme.toolbar.panel, borderColor: theme.toolbar.border, color: theme.toolbar.activeText }} title={t("common.download")} onClick={(event) => (event.stopPropagation(), onDownload())}>
-                        <Download className="size-3 shrink-0" />
-                        <span className="truncate">{t("common.download")}</span>
-                    </button>
-                    <button type="button" className="flex h-8 min-w-0 flex-1 items-center justify-center gap-1 rounded-lg border px-1.5 text-[10px] font-medium shadow-[0_6px_18px_rgba(15,23,42,.16)] backdrop-blur-md transition hover:scale-[1.02]" style={{ background: theme.toolbar.panel, borderColor: theme.toolbar.border, color: theme.toolbar.activeText }} title={t("canvas.node.createCopy")} onClick={(event) => (event.stopPropagation(), onDuplicate())}>
-                        <Copy className="size-3 shrink-0" />
-                        <span className="truncate">{t("canvas.node.createCopy")}</span>
-                    </button>
-                    <button type="button" className="flex h-8 min-w-0 flex-1 items-center justify-center gap-1 rounded-lg border px-1.5 text-[10px] font-medium shadow-[0_6px_18px_rgba(15,23,42,.16)] backdrop-blur-md transition hover:scale-[1.02]" style={{ background: theme.toolbar.panel, borderColor: theme.toolbar.border, color: theme.toolbar.activeText }} title={t("canvas.node.setPrimary")} onClick={(event) => (event.stopPropagation(), onSetPrimary())}>
-                        <Star className="size-3 shrink-0" style={{ color: selectionBlue }} />
-                        <span className="truncate">{t("canvas.node.setPrimary")}</span>
-                    </button>
+                    <Tooltip title={t("common.download")}>
+                        <button type="button" className="flex h-8 min-w-0 flex-1 items-center justify-center gap-1 rounded-lg border px-1.5 text-[10px] font-medium shadow-[0_6px_18px_rgba(15,23,42,.16)] backdrop-blur-md transition hover:scale-[1.02]" style={{ background: theme.toolbar.panel, borderColor: theme.toolbar.border, color: theme.toolbar.activeText }} onClick={(event) => (event.stopPropagation(), onDownload())}>
+                            <Download className="size-3 shrink-0" />
+                            <span className="truncate">{t("common.download")}</span>
+                        </button>
+                    </Tooltip>
+                    <Tooltip title={t("canvas.node.createCopy")}>
+                        <button type="button" className="flex h-8 min-w-0 flex-1 items-center justify-center gap-1 rounded-lg border px-1.5 text-[10px] font-medium shadow-[0_6px_18px_rgba(15,23,42,.16)] backdrop-blur-md transition hover:scale-[1.02]" style={{ background: theme.toolbar.panel, borderColor: theme.toolbar.border, color: theme.toolbar.activeText }} onClick={(event) => (event.stopPropagation(), onDuplicate())}>
+                            <Copy className="size-3 shrink-0" />
+                            <span className="truncate">{t("canvas.node.createCopy")}</span>
+                        </button>
+                    </Tooltip>
+                    <Tooltip title={t("canvas.node.setPrimary")}>
+                        <button type="button" className="flex h-8 min-w-0 flex-1 items-center justify-center gap-1 rounded-lg border px-1.5 text-[10px] font-medium shadow-[0_6px_18px_rgba(15,23,42,.16)] backdrop-blur-md transition hover:scale-[1.02]" style={{ background: theme.toolbar.panel, borderColor: theme.toolbar.border, color: theme.toolbar.activeText }} onClick={(event) => (event.stopPropagation(), onSetPrimary())}>
+                            <Star className="size-3 shrink-0" style={{ color: selectionBlue }} />
+                            <span className="truncate">{t("canvas.node.setPrimary")}</span>
+                        </button>
+                    </Tooltip>
                 </div>
             ) : null}
             {image.status === "error" ? <BatchImageFailureActions placement="right" onRetry={onRetry} onDelete={onDelete} /> : null}
@@ -917,9 +927,11 @@ function BatchImageFailureActions({ placement, onRetry, onDelete }: { placement:
                 <RefreshCw className="size-3.5" />
                 {t("canvas.node.retry")}
             </button>
-            <button type="button" className="grid size-8 place-items-center rounded-lg border shadow-sm transition hover:scale-[1.02]" style={{ background: theme.toolbar.panel, borderColor: theme.toolbar.border, color: theme.node.text }} onClick={(event) => (event.stopPropagation(), onDelete())} aria-label={t("common.delete")} title={t("common.delete")}>
-                <Trash2 className="size-3.5" />
-            </button>
+            <Tooltip title={t("common.delete")}>
+                <button type="button" className="grid size-8 place-items-center rounded-lg border shadow-sm transition hover:scale-[1.02]" style={{ background: theme.toolbar.panel, borderColor: theme.toolbar.border, color: theme.node.text }} onClick={(event) => (event.stopPropagation(), onDelete())} aria-label={t("common.delete")}>
+                    <Trash2 className="size-3.5" />
+                </button>
+            </Tooltip>
         </div>
     );
 }

@@ -1,4 +1,5 @@
 import { useMemo, useRef, useState, type ChangeEvent } from "react";
+import { Tooltip } from "antd";
 import { LayoutGrid, LayoutList, LocateFixed, MapPinPlus, Plus, Trash2, Upload } from "lucide-react";
 import {
   InspectorAxisGroup,
@@ -706,46 +707,49 @@ export function CharacterPanel() {
                   <MapPinPlus aria-hidden="true" size={14} />
                   添加点
                 </button>
-                <button
-                  aria-label="预览当前路线点"
-                  title="定位预览"
-                  className="character-route-icon-button"
-                  type="button"
-                  disabled={!selectedRoutePoint}
-                  onClick={() => {
-                    if (selectedRoutePoint) setCameraMotionProgress(selectedArrivalProgress);
-                  }}
-                >
-                  <LocateFixed aria-hidden="true" size={14} />
-                </button>
-                <button
-                  aria-label="在当前路线点后插入"
-                  title="在当前点后插入"
-                  className="character-route-icon-button"
-                  type="button"
-                  disabled={!selectedRoutePoint || routePath.keyframes[routePath.keyframes.length - 1]?.id === selectedRoutePoint.id}
-                  onClick={() => {
-                    if (!selectedRoutePoint) return;
-                    const id = insertObjectMotionKeyframeAfter(role.id, selectedRoutePoint.id);
-                    if (id) selectObjectMotionKeyframe(id);
-                  }}
-                >
-                  <Plus aria-hidden="true" size={15} />
-                </button>
-                <button
-                  aria-label="删除当前路线点"
-                  title="删除当前点"
-                  className="character-route-icon-button is-danger"
-                  type="button"
-                  disabled={!selectedRoutePoint}
-                  onClick={() => {
-                    if (!selectedRoutePoint) return;
-                    deleteObjectMotionKeyframe(role.id, selectedRoutePoint.id);
-                    selectObjectMotionKeyframe(null);
-                  }}
-                >
-                  <Trash2 aria-hidden="true" size={14} />
-                </button>
+                <Tooltip title="定位预览">
+                  <button
+                    aria-label="预览当前路线点"
+                    className="character-route-icon-button"
+                    type="button"
+                    disabled={!selectedRoutePoint}
+                    onClick={() => {
+                      if (selectedRoutePoint) setCameraMotionProgress(selectedArrivalProgress);
+                    }}
+                  >
+                    <LocateFixed aria-hidden="true" size={14} />
+                  </button>
+                </Tooltip>
+                <Tooltip title="在当前点后插入">
+                  <button
+                    aria-label="在当前路线点后插入"
+                    className="character-route-icon-button"
+                    type="button"
+                    disabled={!selectedRoutePoint || routePath.keyframes[routePath.keyframes.length - 1]?.id === selectedRoutePoint.id}
+                    onClick={() => {
+                      if (!selectedRoutePoint) return;
+                      const id = insertObjectMotionKeyframeAfter(role.id, selectedRoutePoint.id);
+                      if (id) selectObjectMotionKeyframe(id);
+                    }}
+                  >
+                    <Plus aria-hidden="true" size={15} />
+                  </button>
+                </Tooltip>
+                <Tooltip title="删除当前点">
+                  <button
+                    aria-label="删除当前路线点"
+                    className="character-route-icon-button is-danger"
+                    type="button"
+                    disabled={!selectedRoutePoint}
+                    onClick={() => {
+                      if (!selectedRoutePoint) return;
+                      deleteObjectMotionKeyframe(role.id, selectedRoutePoint.id);
+                      selectObjectMotionKeyframe(null);
+                    }}
+                  >
+                    <Trash2 aria-hidden="true" size={14} />
+                  </button>
+                </Tooltip>
               </div>
               <div className="character-route-shape" role="group" aria-label="路线形状">
                 <span>形状</span>
